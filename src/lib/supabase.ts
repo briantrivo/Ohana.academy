@@ -153,14 +153,22 @@ export async function ensureSupabaseReady(): Promise<void> {
       process.env.DATABASE_URL;
 
     if (pgConn) {
+      let cleanConn = pgConn;
+      let useSsl = !pgConn.includes("localhost");
+      try {
+        const parsed = new URL(pgConn);
+        parsed.searchParams.delete("sslmode");
+        parsed.searchParams.delete("supa");
+        cleanConn = parsed.toString();
+      } catch {}
+
       const pool = new Pool({
-        connectionString: pgConn,
-        ssl: pgConn.includes("localhost")
-          ? false
-          : { rejectUnauthorized: false },
+        connectionString: cleanConn,
+        ssl: useSsl ? { rejectUnauthorized: false } : false,
       });
       try {
         await pool.query(SCHEMA_STATEMENTS);
+        await pool.query("NOTIFY pgrst, 'reload schema';");
       } catch (err) {
         console.warn("Supabase auto-schema init warning:", err);
       } finally {
