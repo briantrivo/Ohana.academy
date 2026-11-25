@@ -1,0 +1,99 @@
+import { NextRequest, NextResponse } from "next/server";
+import { readServerDb, writeServerDb } from "@/lib/server-db";
+
+/**
+ * Webhook Thanh Toán Tự Động VietQR (Tương thích chuẩn SePay, PayOS & Casso)
+ * - SePay gửi: { content: "...", transferAmount: 6600000, referenceCode: "FT..." }
+ * - PayOS gửi: { data: { description: "...", amount: 6600000, reference: "..." } }
+ * - Casso gửi: { data: [{ description: "...", amount: 6600000, tid: "..." }] }
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const configuredSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (configuredSecret) {
+      const authHeader = req.headers.get("authorization") || "";
+      const tokenHeader = req.headers.get("secure-token") || "";
+      if (
+        !authHeader.includes(configuredSecret) &&
+        tokenHeader !== configuredSecret
+      ) {
+        return NextResponse.json({ error: "Unauthorized webhook" }, { status: 401 });
+      }
+    }
+
+    const payload = await req.json();
+
+    // Chuẩn hóa danh sách giao dịch từ SePay / PayOS / Casso
+    const transactions: { content: string; amount: number; ref: string }[] = [];
+
+    if (Array.isArray(payload?.data)) {
+      // Định dạng Casso
+      for (const tx of payload.data) {
+        transactions.push({
+          content: String(tx.description || tx.content || ""),
+          amount: Number(tx.amount || 0),
+          ref: String(tx.tid || tx.id || "CASSO-TX"),
+        });
+      }
+    } else if (payload?.data && typeof payload.data === "object") {
+      // Định dạng PayOS
+      transactions.push({
+        content: String(payload.data.description || payload.data.orderCode || ""),
+        amount: Number(payload.data.amount || 0),
+        ref: String(payload.data.reference || payload.data.paymentLinkId || "PAYOS-TX"),
+      });
+    } else {
+      // Định dạng SePay hoặc gọi giả lập trực tiếp
+      transactions.push({
+        content: String(payload.content || payload.description || payload.orderCode || ""),
+        amount: Number(payload.transferAmount ?? payload.amount ?? 0),
+        ref: String(payload.referenceCode || payload.id || `VIETQR-${Date.now()}`),
+      });
+    }
+
+    const db = await readServerDb();
+    const matchedOrders: string[] = [];
+
+    for (const tx of transactions) {
+      const match = tx.content.toUpperCase().match(/OHANA\d{6}/);
+      if (!match) continue;
+      const orderCode = match[0];
+
+      const order = db.orders.find(
+        (o) => o.orderCode.toUpperCase() === orderCode
+      );
+      if (!order) continue;
+
+      if (order.status !== "paid" && tx.amount >= order.finalAmount) {
+        order.status = "paid";
+        order.paidAt = new Date().toISOString();
+        order.transactionRef = tx.ref;
+
+        if (!db.enrollments[order.userId]) {
+          db.enrollments[order.userId] = [];
+        }
+        if (!db.enrollments[order.userId].includes(order.courseId)) {
+          db.enrollments[order.userId].push(order.courseId);
+          const course = db.courses.find((c) => c.id === order.courseId);
+          if (course) course.studentsCount += 1;
+        }
+        matchedOrders.push(order.orderCode);
+      }
+    }
+
+    if (matchedOrders.length > 0) {
+      await writeServerDb(db);
+    }
+
+    return NextResponse.json({
+      success: true,
+      matchedOrders,
+      db,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Webhook processing failed: " + String(err) },
+      { status: 500 }
+    );
+  }
+}

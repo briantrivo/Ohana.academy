@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --bg-space: #07090e;
+  --bg-card: #0f131d;
+  --brand-purple: #7928ca;
+  --brand-cyan: #00dfd8;
+}
+
+body {
+  background-color: #07090e;
+  color: #e2e8f0;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+.font-display {
+  font-family: var(--font-display), system-ui, sans-serif;
+}
+
+.tech-grid {
+  background-image:
+    radial-gradient(900px 500px at 85% 5%, rgba(121, 40, 202, 0.16), transparent 55%),
+    radial-gradient(800px 500px at 10% 35%, rgba(0, 223, 216, 0.12), transparent 55%),
+    radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #00dfd8 0%, #a855f7 55%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glow-card {
+  background: rgba(13, 18, 30, 0.86);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glow-card:hover {
+  border-color: rgba(0, 223, 216, 0.42);
+  box-shadow: 0 16px 36px -12px rgba(121, 40, 202, 0.38);
+}
+
+.btn-gradient {
+  background: linear-gradient(135deg, #7928ca 0%, #4f46e5 50%, #00dfd8 100%);
+  box-shadow: 0 4px 18px rgba(0, 223, 216, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-gradient:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 26px rgba(0, 223, 216, 0.45);
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .tech-grid {
+    background: #ffffff !important;
+  }
+}
