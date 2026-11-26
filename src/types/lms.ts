@@ -112,6 +112,21 @@ export interface Order {
   paidAt?: string;
 }
 
+export type DiscountType = "fixed" | "percent";
+
+export interface CouponRecord {
+  code: string;
+  label: string;
+  discountType: DiscountType;
+  discountValue: number;
+  targetCourseId: string | "ALL";
+  maxUses: number;
+  usedCount: number;
+  active: boolean;
+  expiresAt?: string;
+  createdAt: string;
+}
+
 export interface ActivationCode {
   code: string;
   label: string;
@@ -138,6 +153,7 @@ export interface LMSDatabase {
   users: UserRecord[];
   courses: Course[];
   orders: Order[];
+  coupons: CouponRecord[];
   activationCodes: ActivationCode[];
   certificates: CertificateRecord[];
   enrollments: Record<string, string[]>;

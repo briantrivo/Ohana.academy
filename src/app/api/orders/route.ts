@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildClientStateView, getAuthUser } from "@/lib/auth";
-import { COUPONS } from "@/lib/seed-data";
+import { evaluateCoupon } from "@/lib/coupons";
 import { readServerDb, writeServerDb } from "@/lib/server-db";
 import { ActivationCode, CertificateRecord, Course, LMSDatabase, Order, UserProfile } from "@/types/lms";
 
@@ -35,13 +35,20 @@ export async function POST(req: NextRequest) {
     }
 
     let discountAmount = 0;
-    const normalizedCoupon = (couponCode || "").trim().toUpperCase();
-    if (normalizedCoupon && COUPONS[normalizedCoupon]) {
-      const c = COUPONS[normalizedCoupon];
-      discountAmount =
-        c.type === "percent"
-          ? Math.round((course.price * c.value) / 100)
-          : c.value;
+    let appliedCouponCode: string | undefined;
+    const normalizedCoupon = String(couponCode || "").trim().toUpperCase();
+    if (normalizedCoupon) {
+      const evaluation = evaluateCoupon(
+        db.coupons || [],
+        normalizedCoupon,
+        course.id,
+        course.price
+      );
+      if (!evaluation.valid) {
+        return NextResponse.json({ error: evaluation.error }, { status: 400 });
+      }
+      discountAmount = evaluation.discountAmount;
+      appliedCouponCode = evaluation.coupon.code;
     }
 
     const finalAmount = Math.max(0, course.price - discountAmount);
@@ -60,7 +67,7 @@ export async function POST(req: NextRequest) {
       originalAmount: course.price,
       discountAmount,
       finalAmount,
-      couponCode: normalizedCoupon || undefined,
+      couponCode: appliedCouponCode,
       status: finalAmount === 0 ? "paid" : "pending",
       paymentMethod: "vietqr",
       createdAt: new Date().toISOString(),
@@ -70,6 +77,12 @@ export async function POST(req: NextRequest) {
     db.orders.unshift(newOrder);
 
     if (finalAmount === 0) {
+      if (appliedCouponCode) {
+        const usedCoupon = (db.coupons || []).find(
+          (c) => c.code.toUpperCase() === appliedCouponCode
+        );
+        if (usedCoupon) usedCoupon.usedCount += 1;
+      }
       if (!db.enrollments[authUser.id]) db.enrollments[authUser.id] = [];
       if (!db.enrollments[authUser.id].includes(course.id)) {
         db.enrollments[authUser.id].push(course.id);
@@ -117,9 +130,16 @@ export async function PATCH(req: NextRequest) {
       if (!order) {
         return NextResponse.json({ error: "Không tìm thấy đơn hàng" }, { status: 404 });
       }
+      const wasAlreadyPaid = order.status === "paid";
       order.status = "paid";
       order.paidAt = new Date().toISOString();
       order.transactionRef = transactionRef || `Admin (${authUser.name}) duyệt`;
+      if (!wasAlreadyPaid && order.couponCode) {
+        const usedCoupon = (db.coupons || []).find(
+          (c) => c.code.toUpperCase() === order.couponCode!.toUpperCase()
+        );
+        if (usedCoupon) usedCoupon.usedCount += 1;
+      }
       if (!db.enrollments[order.userId]) db.enrollments[order.userId] = [];
       if (!db.enrollments[order.userId].includes(order.courseId)) {
         db.enrollments[order.userId].push(order.courseId);

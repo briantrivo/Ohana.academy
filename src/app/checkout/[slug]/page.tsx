@@ -17,9 +17,16 @@ import {
   Zap,
 } from "lucide-react";
 import { useLMS } from "@/context/LMSContext";
-import { COUPONS, OHANA_BANK_CONFIG } from "@/lib/seed-data";
+import { OHANA_BANK_CONFIG } from "@/lib/seed-data";
 import { buildVietQrUrl, formatVND } from "@/lib/video";
 import { Order } from "@/types/lms";
+
+interface AppliedCouponState {
+  code: string;
+  label: string;
+  discountAmount: number;
+  finalAmount: number;
+}
 
 export default function CheckoutPage() {
   const params = useParams<{ slug: string }>();
@@ -31,9 +38,12 @@ export default function CheckoutPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [showCouponBox, setShowCouponBox] = useState(false);
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<string>("");
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState | null>(null);
   const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [urlCouponParam, setUrlCouponParam] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
@@ -42,14 +52,49 @@ export default function CheckoutPage() {
   const [isLocalhost, setIsLocalhost] = useState(false);
 
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1")
-    ) {
-      setIsLocalhost(true);
+    if (typeof window !== "undefined") {
+      if (
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+      ) {
+        setIsLocalhost(true);
+      }
+      const qp = new URLSearchParams(window.location.search).get("coupon") || "";
+      const cleanQp = qp.trim().toUpperCase();
+      if (cleanQp) {
+        setUrlCouponParam(cleanQp);
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (!urlCouponParam || !course) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/coupons/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: urlCouponParam, courseId: course.id }),
+        });
+        const data = await res.json();
+        if (!cancelled && res.ok && data.valid) {
+          setCouponCode(data.code);
+          setAppliedCoupon({
+            code: data.code,
+            label: data.label,
+            discountAmount: Number(data.discountAmount || 0),
+            finalAmount: Number(data.finalAmount ?? course.price),
+          });
+          setShowCouponBox(true);
+          setCouponError("");
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlCouponParam, course]);
 
   useEffect(() => {
     if (user) {
@@ -116,7 +161,9 @@ export default function CheckoutPage() {
             {googleEnabled && (
               <a
                 href={`/api/auth/google?next=${encodeURIComponent(
-                  `/checkout/${course.slug}`
+                  urlCouponParam
+                    ? `/checkout/${course.slug}?coupon=${encodeURIComponent(urlCouponParam)}`
+                    : `/checkout/${course.slug}`
                 )}`}
                 className="w-full py-3.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm flex items-center justify-center gap-2 shadow-lg"
               >
@@ -124,7 +171,11 @@ export default function CheckoutPage() {
               </a>
             )}
             <Link
-              href={`/login?next=${encodeURIComponent(`/checkout/${course.slug}`)}`}
+              href={`/login?next=${encodeURIComponent(
+                urlCouponParam
+                  ? `/checkout/${course.slug}?coupon=${encodeURIComponent(urlCouponParam)}`
+                  : `/checkout/${course.slug}`
+              )}`}
               className="w-full py-3.5 rounded-xl btn-gradient text-white font-extrabold text-sm flex items-center justify-center gap-2"
             >
               <LogIn className="w-4 h-4" />
@@ -136,27 +187,50 @@ export default function CheckoutPage() {
     );
   }
 
-  const couponInfo = appliedCoupon ? COUPONS[appliedCoupon] : undefined;
-  const discountAmount = couponInfo
-    ? couponInfo.type === "percent"
-      ? Math.round((course.price * couponInfo.value) / 100)
-      : couponInfo.value
-    : 0;
-  const finalAmount = Math.max(0, course.price - discountAmount);
+  const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+  const finalAmount = appliedCoupon
+    ? appliedCoupon.finalAmount
+    : Math.max(0, course.price);
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     const clean = couponCode.trim().toUpperCase();
     if (!clean) {
-      setAppliedCoupon("");
+      setAppliedCoupon(null);
       setCouponError("");
       return;
     }
-    if (!COUPONS[clean]) {
-      setCouponError("Mã giảm giá chưa đúng (Thử: OHANA500, TRIVO10, ASTRONIXAVIP)");
-      return;
-    }
+    setValidatingCoupon(true);
     setCouponError("");
-    setAppliedCoupon(clean);
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: clean, courseId: course.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setAppliedCoupon(null);
+        setCouponError(data.error || "Mã ưu đãi không hợp lệ hoặc đã hết hiệu lực.");
+        return;
+      }
+      setAppliedCoupon({
+        code: data.code,
+        label: data.label,
+        discountAmount: Number(data.discountAmount || 0),
+        finalAmount: Number(data.finalAmount ?? course.price),
+      });
+      setCouponError("");
+    } catch {
+      setCouponError("Không thể kiểm tra mã ưu đãi lúc này. Vui lòng thử lại.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleClearCoupon = () => {
+    setCouponCode("");
+    setAppliedCoupon(null);
+    setCouponError("");
   };
 
   const handleCreateOrder = async (e: React.FormEvent) => {
@@ -174,7 +248,7 @@ export default function CheckoutPage() {
           customerName: fullName,
           customerEmail: email,
           customerPhone: phone,
-          couponCode: appliedCoupon,
+          couponCode: appliedCoupon?.code || "",
         }),
       });
       const data = await res.json();
@@ -301,33 +375,71 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="pt-2">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Mã giảm giá / Học bổng Astronixa
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    placeholder="Thử: OHANA500 hoặc TRIVO10"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white uppercase focus:outline-none focus:border-cyan-400"
-                  />
+              <div className="pt-1">
+                {!showCouponBox && !appliedCoupon ? (
                   <button
                     type="button"
-                    onClick={handleApplyCoupon}
-                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold border border-slate-700 cursor-pointer"
+                    onClick={() => setShowCouponBox(true)}
+                    className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer"
                   >
-                    Áp dụng
+                    <Tag className="w-3.5 h-3.5" />
+                    Bạn có mã ưu đãi? Bấm để nhập
                   </button>
-                </div>
-                {couponError && (
-                  <p className="text-[11px] text-rose-400 mt-1.5">{couponError}</p>
-                )}
-                {couponInfo && (
-                  <p className="text-[11px] text-emerald-400 mt-1.5 font-semibold">
-                    ✓ Đã áp dụng: {couponInfo.label}
-                  </p>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Mã ưu đãi (nếu có)
+                      </label>
+                      {!appliedCoupon && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCouponBox(false);
+                            setCouponCode("");
+                            setCouponError("");
+                          }}
+                          className="text-[11px] text-slate-500 hover:text-slate-300 cursor-pointer"
+                        >
+                          Thu gọn
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Nhập mã ưu đãi..."
+                        className="flex-1 px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white uppercase focus:outline-none focus:border-cyan-400"
+                      />
+                      <button
+                        type="button"
+                        disabled={validatingCoupon}
+                        onClick={handleApplyCoupon}
+                        className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold border border-slate-700 cursor-pointer disabled:opacity-50"
+                      >
+                        {validatingCoupon ? "Đang kiểm..." : "Áp dụng"}
+                      </button>
+                    </div>
+                    {couponError && (
+                      <p className="text-[11px] text-rose-400">{couponError}</p>
+                    )}
+                    {appliedCoupon && (
+                      <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                        <p className="text-[11px] text-emerald-300 font-semibold">
+                          ✓ Đã áp dụng: {appliedCoupon.label}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleClearCoupon}
+                          className="text-[11px] text-slate-400 hover:text-rose-300 font-semibold shrink-0 cursor-pointer"
+                        >
+                          Gỡ mã
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -374,10 +486,10 @@ export default function CheckoutPage() {
                 <span>Học phí niêm yết</span>
                 <span>{formatVND(course.price)}</span>
               </div>
-              {discountAmount > 0 && (
+              {discountAmount > 0 && appliedCoupon && (
                 <div className="flex justify-between text-emerald-400 font-semibold">
                   <span className="flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5" /> Giảm giá ({appliedCoupon})
+                    <Tag className="w-3.5 h-3.5" /> Giảm giá ({appliedCoupon.code})
                   </span>
                   <span>-{formatVND(discountAmount)}</span>
                 </div>

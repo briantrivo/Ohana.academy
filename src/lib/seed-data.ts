@@ -9,12 +9,6 @@ export const OHANA_BANK_CONFIG = {
     "https://img.vietqr.io/image/ACB-49682677-compact2.png?accountName=VO%20QUOC%20TRI",
 };
 
-export const COUPONS: Record<string, { label: string; type: "percent" | "fixed"; value: number }> = {
-  OHANA500: { label: "Ưu đãi Cộng đồng Ohana (-500.000đ)", type: "fixed", value: 500000 },
-  TRIVO10: { label: "Mã giới thiệu Giám đốc Brian Võ (-10%)", type: "percent", value: 10 },
-  ASTRONIXAVIP: { label: "Học bổng Đối tác Astronixa (-1.000.000đ)", type: "fixed", value: 1000000 },
-};
-
 export const INITIAL_ACTIVATION_CODES: ActivationCode[] = [
   {
     code: "OHANA-NOIBO-2026",
@@ -772,6 +766,7 @@ export function createInitialDatabase(): LMSDatabase {
         paidAt: "2026-11-24T09:16:12.000Z",
       },
     ],
+    coupons: [],
     activationCodes: INITIAL_ACTIVATION_CODES,
     certificates: [],
     enrollments: {

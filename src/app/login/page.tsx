@@ -364,7 +364,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-...
                   type="text"
                   value={internalCode}
                   onChange={(e) => setInternalCode(e.target.value.toUpperCase())}
-                  placeholder="Để trống nếu là học viên thường • VD: OHANA-NOIBO-2026"
+                  placeholder="Nhập mã nếu bạn là Nhân sự Nội bộ hoặc có Học bổng"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white uppercase focus:outline-none focus:border-purple-400"
                 />
               </div>

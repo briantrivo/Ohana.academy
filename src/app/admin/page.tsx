@@ -6,14 +6,17 @@ import {
   BookOpen,
   Building2,
   CheckCircle2,
+  Copy,
   ExternalLink,
   KeyRound,
   LayoutDashboard,
   LogIn,
   Plus,
+  Power,
   QrCode,
   ShieldAlert,
   ShieldCheck,
+  Tag,
   Trash2,
   UserCheck,
   UserPlus,
@@ -24,9 +27,9 @@ import {
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { useLMS } from "@/context/LMSContext";
 import { formatVND } from "@/lib/video";
-import { CourseAccessType, UserRole } from "@/types/lms";
+import { CourseAccessType, DiscountType, UserRole } from "@/types/lms";
 
-type AdminTab = "courses" | "orders" | "codes" | "users";
+type AdminTab = "courses" | "orders" | "coupons" | "codes" | "users";
 
 const OHANA_THUMBNAILS = [
   { label: "Banner Ohana AI Academy Cyber", url: "/ohana/banner_ohana_ai_academy_cyber.jpg" },
@@ -87,6 +90,19 @@ export default function AdminStudioPage() {
   const [pwdMsg, setPwdMsg] = useState("");
   const [pwdError, setPwdError] = useState("");
   const [pwdSubmitting, setPwdSubmitting] = useState(false);
+
+  // Coupon Form State
+  const [cCode, setCCode] = useState("");
+  const [cLabel, setCLabel] = useState("");
+  const [cType, setCType] = useState<DiscountType>("fixed");
+  const [cValue, setCValue] = useState("500000");
+  const [cTarget, setCTarget] = useState("ALL");
+  const [cMaxUses, setCMaxUses] = useState("100");
+  const [cExpiresAt, setCExpiresAt] = useState("");
+  const [cActive, setCActive] = useState(true);
+  const [couponMsg, setCouponMsg] = useState("");
+  const [couponErr, setCouponErr] = useState("");
+  const [copiedCouponLink, setCopiedCouponLink] = useState("");
 
   const stats = useMemo(() => {
     const paidOrders = db.orders.filter((o) => o.status === "paid");
@@ -370,6 +386,70 @@ export default function AdminStudioPage() {
     }
   };
 
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCouponMsg("");
+    setCouponErr("");
+    const res = await fetch("/api/admin/coupons", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: cCode,
+        label: cLabel,
+        discountType: cType,
+        discountValue: Number(cValue || 0),
+        targetCourseId: cTarget,
+        maxUses: Number(cMaxUses || 0),
+        expiresAt: cExpiresAt ? `${cExpiresAt}T23:59:59+07:00` : "",
+        active: cActive,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setCouponErr(data.error || "Không thể tạo mã giảm giá.");
+      return;
+    }
+    if (data.db) setDbState(data.db);
+    setCCode("");
+    setCLabel("");
+    setCExpiresAt("");
+    setCouponMsg(`✓ Đã lưu mã giảm giá ${data.coupon.code} lên Supabase!`);
+  };
+
+  const handleToggleCoupon = async (code: string, active: boolean) => {
+    const res = await fetch("/api/admin/coupons", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, active }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleDeleteCoupon = async (code: string) => {
+    const res = await fetch(`/api/admin/coupons?code=${encodeURIComponent(code)}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleCopyCouponLink = (code: string, targetCourseId: string) => {
+    const commercialCourse =
+      (targetCourseId !== "ALL"
+        ? db.courses.find((c) => c.id === targetCourseId)
+        : db.courses.find((c) => c.accessType === "commercial")) || db.courses[0];
+    if (!commercialCourse || typeof window === "undefined") return;
+    const url = `${window.location.origin}/checkout/${commercialCourse.slug}?coupon=${encodeURIComponent(code)}`;
+    navigator.clipboard?.writeText(url);
+    setCopiedCouponLink(code);
+    setTimeout(() => setCopiedCouponLink(""), 2200);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-20 space-y-8">
       {/* Header */}
@@ -455,6 +535,18 @@ export default function AdminStudioPage() {
           }`}
         >
           <QrCode className="w-4 h-4" /> Đơn Hàng VietQR ({db.orders.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab("coupons")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-all ${
+            tab === "coupons"
+              ? "btn-gradient text-white"
+              : "bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-600"
+          }`}
+        >
+          <Tag className="w-4 h-4" /> Mã Giảm Giá ({(db.coupons || []).length})
         </button>
 
         <button
@@ -844,6 +936,260 @@ export default function AdminStudioPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: COMMERCIAL DISCOUNT COUPONS */}
+      {tab === "coupons" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <form
+            onSubmit={handleSaveCoupon}
+            className="lg:col-span-5 glow-card rounded-3xl p-6 space-y-4"
+          >
+            <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
+              <Tag className="w-5 h-5 text-emerald-400" />
+              Tạo / Thiết Lập Mã Giảm Giá
+            </h2>
+            <p className="text-xs text-slate-400">
+              Mã được lưu bảo mật trên Supabase (không hiển thị công khai ở trang thanh toán). Anh có thể bật/tắt bất cứ lúc nào hoặc copy link ưu đãi riêng gửi khách VIP.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Mã giảm giá (không dấu) *
+              </label>
+              <input
+                type="text"
+                required
+                value={cCode}
+                onChange={(e) => setCCode(e.target.value.toUpperCase())}
+                placeholder="VD: K04VIP500"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white uppercase"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Tên chương trình ưu đãi
+              </label>
+              <input
+                type="text"
+                value={cLabel}
+                onChange={(e) => setCLabel(e.target.value)}
+                placeholder="VD: Ưu đãi khách mời Workshop K04"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Kiểu giảm
+                </label>
+                <select
+                  value={cType}
+                  onChange={(e) =>
+                    setCType(e.target.value === "percent" ? "percent" : "fixed")
+                  }
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                >
+                  <option value="fixed">Giảm trực tiếp (VNĐ)</option>
+                  <option value="percent">Giảm theo phần trăm (%)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {cType === "percent" ? "Phần trăm giảm (%) *" : "Số tiền giảm (VNĐ) *"}
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={cType === "percent" ? 100 : undefined}
+                  value={cValue}
+                  onChange={(e) => setCValue(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Khóa học áp dụng
+              </label>
+              <select
+                value={cTarget}
+                onChange={(e) => setCTarget(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+              >
+                <option value="ALL">Tất cả khóa học thương mại</option>
+                {db.courses
+                  .filter((c) => c.accessType === "commercial")
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      Chỉ khóa: {c.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Số lượt tối đa (0 = vô hạn)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={cMaxUses}
+                  onChange={(e) => setCMaxUses(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Ngày hết hạn (tùy chọn)
+                </label>
+                <input
+                  type="date"
+                  value={cExpiresAt}
+                  onChange={(e) => setCExpiresAt(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={cActive}
+                onChange={(e) => setCActive(e.target.checked)}
+                className="rounded border-slate-700"
+              />
+              Kích hoạt ngay sau khi tạo
+            </label>
+
+            {couponErr && (
+              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-300 text-xs font-semibold">
+                {couponErr}
+              </div>
+            )}
+            {couponMsg && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-xs font-semibold">
+                {couponMsg}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl btn-gradient text-white font-bold text-xs cursor-pointer"
+            >
+              Lưu Mã Giảm Giá
+            </button>
+          </form>
+
+          <div className="lg:col-span-7 glow-card rounded-3xl p-6 space-y-4">
+            <h2 className="font-display text-lg font-bold text-white">
+              Danh Sách Mã Giảm Giá ({(db.coupons || []).length})
+            </h2>
+            {(db.coupons || []).length === 0 ? (
+              <div className="p-8 text-center rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+                Chưa có mã giảm giá nào. Tạo mã mới ở khung bên trái để sử dụng cho các chiến dịch ưu đãi.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(db.coupons || []).map((cp) => {
+                  const isExpired = Boolean(
+                    cp.expiresAt && new Date(cp.expiresAt).getTime() < Date.now()
+                  );
+                  return (
+                    <div
+                      key={cp.code}
+                      className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-extrabold text-sm text-cyan-300">
+                            {cp.code}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[11px] font-bold">
+                            {cp.discountType === "percent"
+                              ? `-${cp.discountValue}%`
+                              : `-${formatVND(cp.discountValue)}`}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              cp.active && !isExpired
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : "bg-slate-800 text-slate-400"
+                            }`}
+                          >
+                            {isExpired
+                              ? "Đã hết hạn"
+                              : cp.active
+                              ? "Đang bật"
+                              : "Đang tắt"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-300">{cp.label}</div>
+                        <div className="text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <span>
+                            Áp dụng:{" "}
+                            {cp.targetCourseId === "ALL"
+                              ? "Tất cả khóa thương mại"
+                              : db.courses.find((c) => c.id === cp.targetCourseId)?.title ||
+                                cp.targetCourseId}
+                          </span>
+                          <span>
+                            Lượt dùng: {cp.usedCount} /{" "}
+                            {cp.maxUses === 0 ? "∞" : cp.maxUses}
+                          </span>
+                          {cp.expiresAt && (
+                            <span>
+                              Hạn: {new Date(cp.expiresAt).toLocaleDateString("vi-VN")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCoupon(cp.code, !cp.active)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1 border cursor-pointer ${
+                            cp.active
+                              ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40"
+                              : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
+                          }`}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          {cp.active ? "Tắt mã" : "Bật mã"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCopyCouponLink(cp.code, cp.targetCourseId)
+                          }
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          {copiedCouponLink === cp.code ? "Đã copy link" : "Link ưu đãi"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCoupon(cp.code)}
+                          title="Xóa mã giảm giá"
+                          className="p-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

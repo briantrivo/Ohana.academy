@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { hashPasswordWithSalt } from "@/lib/auth-crypto";
+import { DEFAULT_INITIAL_COUPONS } from "@/lib/coupons";
 import { createInitialDatabase } from "@/lib/seed-data";
 import {
   ensureSupabaseReady,
@@ -10,7 +11,9 @@ import {
 import {
   ActivationCode,
   CertificateRecord,
+  CouponRecord,
   Course,
+  DiscountType,
   LMSDatabase,
   Order,
   UserRecord,
@@ -71,6 +74,7 @@ export function createDefaultUsers(): UserRecord[] {
 function buildSeededDb(): LMSDatabase {
   const initial = createInitialDatabase();
   initial.users = createDefaultUsers();
+  initial.coupons = DEFAULT_INITIAL_COUPONS.map((c) => ({ ...c }));
   return initial;
 }
 
@@ -97,8 +101,16 @@ function readLocalJsonDb(): LMSDatabase {
     }
     const raw = fs.readFileSync(filePath, "utf-8");
     const parsed = JSON.parse(raw) as LMSDatabase;
+    let mutated = false;
     if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
       parsed.users = createDefaultUsers();
+      mutated = true;
+    }
+    if (!Array.isArray(parsed.coupons)) {
+      parsed.coupons = DEFAULT_INITIAL_COUPONS.map((c) => ({ ...c }));
+      mutated = true;
+    }
+    if (mutated) {
       fs.writeFileSync(filePath, JSON.stringify(parsed, null, 2), "utf-8");
     }
     return parsed;
@@ -131,6 +143,7 @@ export async function readServerDb(): Promise<LMSDatabase> {
       usersRes,
       coursesRes,
       ordersRes,
+      couponsRes,
       codesRes,
       certsRes,
       enrollRes,
@@ -140,6 +153,7 @@ export async function readServerDb(): Promise<LMSDatabase> {
       sb.from("ohana_users").select("*").order("created_at", { ascending: true }),
       sb.from("ohana_courses").select("*").order("created_at", { ascending: false }),
       sb.from("ohana_orders").select("*").order("created_at", { ascending: false }),
+      sb.from("ohana_coupons").select("*").order("created_at", { ascending: false }),
       sb.from("ohana_activation_codes").select("*").order("created_at", { ascending: false }),
       sb.from("ohana_certificates").select("*").order("issued_at", { ascending: false }),
       sb.from("ohana_enrollments").select("*"),
@@ -199,6 +213,19 @@ export async function readServerDb(): Promise<LMSDatabase> {
       paidAt: row.paid_at ? String(row.paid_at) : undefined,
     }));
 
+    const coupons: CouponRecord[] = (!couponsRes.error && couponsRes.data ? couponsRes.data : []).map((row) => ({
+      code: String(row.code),
+      label: String(row.label),
+      discountType: (row.discount_type as DiscountType) === "percent" ? "percent" : "fixed",
+      discountValue: Number(row.discount_value || 0),
+      targetCourseId: String(row.target_course_id || "ALL"),
+      maxUses: Number(row.max_uses ?? 100),
+      usedCount: Number(row.used_count || 0),
+      active: Boolean(row.active),
+      expiresAt: row.expires_at ? String(row.expires_at) : undefined,
+      createdAt: String(row.created_at),
+    }));
+
     const activationCodes: ActivationCode[] = (codesRes.data || []).map((row) => ({
       code: String(row.code),
       label: String(row.label),
@@ -251,6 +278,7 @@ export async function readServerDb(): Promise<LMSDatabase> {
       users,
       courses,
       orders,
+      coupons,
       activationCodes,
       certificates,
       enrollments,
@@ -338,6 +366,34 @@ export async function writeServerDb(db: LMSDatabase): Promise<LMSDatabase> {
           paid_at: o.paidAt || null,
         })),
         { onConflict: "order_code" }
+      );
+    }
+
+    const existingCouponCodes = (
+      await sb.from("ohana_coupons").select("code")
+    ).data?.map((r) => String(r.code)) || [];
+    const currentCouponCodes = new Set((db.coupons || []).map((c) => c.code));
+    const deletedCouponCodes = existingCouponCodes.filter(
+      (code) => !currentCouponCodes.has(code)
+    );
+    if (deletedCouponCodes.length > 0) {
+      await sb.from("ohana_coupons").delete().in("code", deletedCouponCodes);
+    }
+    if ((db.coupons || []).length > 0) {
+      await sb.from("ohana_coupons").upsert(
+        (db.coupons || []).map((c) => ({
+          code: c.code,
+          label: c.label,
+          discount_type: c.discountType,
+          discount_value: c.discountValue,
+          target_course_id: c.targetCourseId || "ALL",
+          max_uses: c.maxUses,
+          used_count: c.usedCount,
+          active: c.active,
+          expires_at: c.expiresAt || null,
+          created_at: c.createdAt,
+        })),
+        { onConflict: "code" }
       );
     }
 

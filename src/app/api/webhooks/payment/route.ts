@@ -81,6 +81,13 @@ export async function POST(req: NextRequest) {
         order.paidAt = new Date().toISOString();
         order.transactionRef = tx.ref;
 
+        if (order.couponCode) {
+          const usedCoupon = (db.coupons || []).find(
+            (c) => c.code.toUpperCase() === order.couponCode!.toUpperCase()
+          );
+          if (usedCoupon) usedCoupon.usedCount += 1;
+        }
+
         if (!db.enrollments[order.userId]) {
           db.enrollments[order.userId] = [];
         }

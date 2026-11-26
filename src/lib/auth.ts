@@ -100,6 +100,7 @@ export function buildClientStateView(
       users: [],
       courses: safeCourses,
       orders: [],
+      coupons: [],
       activationCodes: [],
       certificates: [],
       enrollments: {},
@@ -113,6 +114,7 @@ export function buildClientStateView(
       users: (db.users || []).map((u) => sanitizeUser(u)) as UserRecord[],
       courses: safeCourses,
       orders: db.orders,
+      coupons: db.coupons || [],
       activationCodes: db.activationCodes,
       certificates: db.certificates,
       enrollments: db.enrollments,
@@ -125,6 +127,7 @@ export function buildClientStateView(
     users: [],
     courses: safeCourses,
     orders: db.orders.filter((o) => o.userId === uid),
+    coupons: [],
     activationCodes: [],
     certificates: db.certificates.filter(
       (c) => c.studentEmail.toLowerCase() === authUser.email.toLowerCase()

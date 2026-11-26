@@ -95,6 +95,19 @@ create table if not exists ohana_activation_codes (
   created_at timestamptz not null default now()
 );
 
+create table if not exists ohana_coupons (
+  code text primary key,
+  label text not null,
+  discount_type text not null default 'fixed',
+  discount_value bigint not null default 0,
+  target_course_id text not null default 'ALL',
+  max_uses integer not null default 100,
+  used_count integer not null default 0,
+  active boolean not null default false,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists ohana_certificates (
   code text primary key,
   course_id text not null,
@@ -134,6 +147,7 @@ alter table ohana_users enable row level security;
 alter table ohana_courses enable row level security;
 alter table ohana_orders enable row level security;
 alter table ohana_activation_codes enable row level security;
+alter table ohana_coupons enable row level security;
 alter table ohana_certificates enable row level security;
 alter table ohana_enrollments enable row level security;
 alter table ohana_lesson_progress enable row level security;

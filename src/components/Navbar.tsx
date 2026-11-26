@@ -281,7 +281,7 @@ export function Navbar() {
                 type="text"
                 value={codeInput}
                 onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                placeholder="VD: OHANA-NOIBO-2026"
+                placeholder="Nhập mã kích hoạt được cấp..."
                 className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-sm uppercase tracking-wider focus:outline-none focus:border-cyan-400"
               />
 
