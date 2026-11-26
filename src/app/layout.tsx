@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { LMSProvider } from "@/context/LMSContext";
@@ -54,6 +55,15 @@ export default function RootLayout({
                 <div>Đơn vị vận hành: Công Ty TNHH Astronixa & Ban Đào Tạo Ohana Career</div>
                 <div className="mt-0.5">
                   Hỗ trợ thanh toán tự động VietQR 24/7 • Cấp chứng chỉ định danh trực tuyến
+                </div>
+                <div className="mt-1.5 flex items-center justify-center sm:justify-end gap-3 text-slate-400">
+                  <Link href="/privacy" className="hover:text-cyan-400 transition-colors">
+                    Chính sách bảo mật
+                  </Link>
+                  <span>•</span>
+                  <Link href="/terms" className="hover:text-cyan-400 transition-colors">
+                    Điều khoản sử dụng
+                  </Link>
                 </div>
               </div>
             </div>

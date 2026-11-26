@@ -80,6 +80,14 @@ export default function AdminStudioPage() {
   const [uRole, setURole] = useState<"internal" | "student">("internal");
   const [userMsg, setUserMsg] = useState("");
 
+  // Admin Change Password State
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [pwdMsg, setPwdMsg] = useState("");
+  const [pwdError, setPwdError] = useState("");
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
+
   const stats = useMemo(() => {
     const paidOrders = db.orders.filter((o) => o.status === "paid");
     const revenue = paidOrders.reduce((sum, o) => sum + o.finalAmount, 0);
@@ -323,6 +331,42 @@ export default function AdminStudioPage() {
     if (res.ok) {
       const data = await res.json();
       if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdMsg("");
+    setPwdError("");
+    if (newPwd.length < 8) {
+      setPwdError("Mật khẩu mới phải có tối thiểu 8 ký tự.");
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setPwdError("Xác nhận mật khẩu mới chưa khớp.");
+      return;
+    }
+    setPwdSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: currentPwd,
+          newPassword: newPwd,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPwdError(data.error || "Không thể đổi mật khẩu.");
+        return;
+      }
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+      setPwdMsg("✓ " + (data.message || "Đã đổi mật khẩu Admin thành công!"));
+    } finally {
+      setPwdSubmitting(false);
     }
   };
 
@@ -925,9 +969,10 @@ export default function AdminStudioPage() {
       {/* TAB 4: USER & INTERNAL STAFF MANAGEMENT */}
       {tab === "users" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-5 space-y-6">
           <form
             onSubmit={handleCreateUser}
-            className="lg:col-span-5 glow-card rounded-3xl p-6 space-y-4"
+            className="glow-card rounded-3xl p-6 space-y-4"
           >
             <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-cyan-400" />
@@ -1037,6 +1082,80 @@ export default function AdminStudioPage() {
               Cấp Tài Khoản Ngay
             </button>
           </form>
+
+          <form
+            onSubmit={handleChangePassword}
+            className="glow-card rounded-3xl p-6 space-y-4 border border-amber-500/25"
+          >
+            <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-amber-400" />
+              Đổi Mật Khẩu Admin ({user.email})
+            </h2>
+            <p className="text-xs text-slate-400">
+              Cập nhật trực tiếp mật khẩu đăng nhập tài khoản Quản trị viên trên Supabase (băm scrypt).
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Mật khẩu hiện tại *
+              </label>
+              <input
+                type="password"
+                required
+                value={currentPwd}
+                onChange={(e) => setCurrentPwd(e.target.value)}
+                placeholder="Nhập mật khẩu hiện tại"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Mật khẩu mới (≥ 8 ký tự) *
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Nhập lại mật khẩu mới *
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+            </div>
+            {pwdError && (
+              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-300 text-xs font-semibold">
+                {pwdError}
+              </div>
+            )}
+            {pwdMsg && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-xs font-semibold">
+                {pwdMsg}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={pwdSubmitting}
+              className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-xs cursor-pointer disabled:opacity-50"
+            >
+              {pwdSubmitting ? "Đang cập nhật..." : "Cập Nhật Mật Khẩu Admin"}
+            </button>
+          </form>
+          </div>
 
           <div className="lg:col-span-7 glow-card rounded-3xl p-6 space-y-4">
             <h2 className="font-display text-lg font-bold text-white">
