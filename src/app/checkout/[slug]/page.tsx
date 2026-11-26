@@ -39,6 +39,17 @@ export default function CheckoutPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [copiedField, setCopiedField] = useState<string>("");
   const [simulatingWebhook, setSimulatingWebhook] = useState(false);
+  const [isLocalhost, setIsLocalhost] = useState(false);
+
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1")
+    ) {
+      setIsLocalhost(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -385,8 +396,8 @@ export default function CheckoutPage() {
                 Cam kết kích hoạt tự động
               </div>
               <p>
-                Hệ thống đối soát Techcombank 24/7 qua Webhook SePay/PayOS. Ngay khi
-                ngân hàng báo có, khóa học sẽ tự động mở mà không cần chờ nhân viên duyệt.
+                Hệ thống đối soát ACB 24/7 qua Webhook SePay. Ngay khi ngân hàng báo
+                có, khóa học sẽ tự động mở mà không cần chờ nhân viên duyệt.
               </p>
             </div>
           </div>
@@ -521,22 +532,24 @@ export default function CheckoutPage() {
                 </button>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs text-slate-400">
-                  Môi trường chạy thử trên máy: Bấm nút bên phải để giả lập Webhook SePay/PayOS báo tiền vừa về tài khoản.
+              {isLocalhost && (
+                <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-xs text-slate-400">
+                    Môi trường chạy thử trên máy: Bấm nút bên phải để giả lập Webhook SePay báo tiền vừa về tài khoản.
+                  </div>
+                  <button
+                    type="button"
+                    disabled={simulatingWebhook}
+                    onClick={handleSimulateWebhook}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 text-xs font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Zap className="w-4 h-4" />
+                    {simulatingWebhook
+                      ? "Đang kích hoạt..."
+                      : "Giả lập Webhook đã nhận tiền"}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={simulatingWebhook}
-                  onClick={handleSimulateWebhook}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 text-xs font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
-                >
-                  <Zap className="w-4 h-4" />
-                  {simulatingWebhook
-                    ? "Đang kích hoạt..."
-                    : "Giả lập Webhook đã nhận tiền"}
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>

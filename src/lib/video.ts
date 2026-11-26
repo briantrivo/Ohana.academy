@@ -96,12 +96,12 @@ export function buildVietQrUrl(params: {
   accountNo?: string;
   accountName?: string;
 }): string {
-  const bankId = params.bankId || process.env.NEXT_PUBLIC_VIETQR_BANK_ID || "TCB";
-  const accountNo = params.accountNo || process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO || "894567";
+  const bankId = params.bankId || process.env.NEXT_PUBLIC_VIETQR_BANK_ID || "ACB";
+  const accountNo = params.accountNo || process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO || "49682677";
   const accountName =
     params.accountName ||
     process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NAME ||
-    "CONG TY TNHH ASTRONIXA";
+    "VO QUOC TRI";
 
   const info = encodeURIComponent(`${params.orderCode}`);
   const accName = encodeURIComponent(accountName);

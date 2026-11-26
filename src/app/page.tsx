@@ -126,7 +126,7 @@ export default function HomePage() {
                     Bán Khóa Học Quét VietQR
                   </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Học thử miễn phí, đăng nhập Google/Email, chuyển khoản Techcombank tự động kích hoạt.
+                    Học thử miễn phí, đăng nhập Google/Email, chuyển khoản ACB tự động kích hoạt.
                   </p>
                 </button>
               </div>
@@ -315,7 +315,7 @@ export default function HomePage() {
               <div className="p-3.5 rounded-xl bg-slate-900/75 border border-slate-800 flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white">VietQR Techcombank Tự Động</div>
+                  <div className="font-bold text-white">VietQR ACB Tự Động</div>
                   <div className="text-slate-400 mt-0.5">
                     Tạo mã QR kèm đúng số tiền &amp; mã đơn, kết nối sẵn Webhook SePay / PayOS / Casso.
                   </div>

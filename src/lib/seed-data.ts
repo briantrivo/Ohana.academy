@@ -1,11 +1,12 @@
 import { ActivationCode, Course, LMSDatabase } from "@/types/lms";
 
 export const OHANA_BANK_CONFIG = {
-  bankId: "TCB",
-  bankName: "Ngân hàng Techcombank - Kỹ Thương Việt Nam",
-  accountNo: "894567",
-  accountName: "CÔNG TY TNHH ASTRONIXA",
-  fallbackQrImage: "/ohana/qr_techcombank_astronixa.jpg",
+  bankId: "ACB",
+  bankName: "Ngân hàng ACB - TMCP Á Châu",
+  accountNo: "49682677",
+  accountName: "VO QUOC TRI",
+  fallbackQrImage:
+    "https://img.vietqr.io/image/ACB-49682677-compact2.png?accountName=VO%20QUOC%20TRI",
 };
 
 export const COUPONS: Record<string, { label: string; type: "percent" | "fixed"; value: number }> = {
@@ -459,7 +460,7 @@ export const INITIAL_COURSES: Course[] = [
               },
               {
                 id: "q4",
-                question: "Khi thanh toán học phí qua VietQR Techcombank (Công ty TNHH Astronixa - STK 894567), hệ thống Webhook mở khóa dựa vào yếu tố nào?",
+                question: "Khi thanh toán học phí qua VietQR ACB (VO QUOC TRI - STK 49682677), hệ thống Webhook mở khóa dựa vào yếu tố nào?",
                 options: [
                   "Đợi 3 ngày làm việc sau khi chuyển khoản",
                   "Mã đơn hàng duy nhất (OHANAxxxxxx) trong nội dung chuyển khoản khớp với số tiền thực nhận",
@@ -766,7 +767,7 @@ export function createInitialDatabase(): LMSDatabase {
         finalAmount: 6600000,
         status: "paid",
         paymentMethod: "vietqr",
-        transactionRef: "FT2632988120 - Techcombank VietQR",
+        transactionRef: "FT2632988120 - ACB VietQR",
         createdAt: "2026-11-24T09:15:00.000Z",
         paidAt: "2026-11-24T09:16:12.000Z",
       },

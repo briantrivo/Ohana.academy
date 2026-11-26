@@ -1,22 +1,31 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { readServerDb, writeServerDb } from "@/lib/server-db";
 
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 /**
  * Webhook Thanh Toán Tự Động VietQR (Tương thích chuẩn SePay, PayOS & Casso)
- * - SePay gửi: { content: "...", transferAmount: 6600000, referenceCode: "FT..." }
+ * - SePay gửi: { transferType: "in", content: "...", transferAmount: 6600000, referenceCode: "FT..." }
  * - PayOS gửi: { data: { description: "...", amount: 6600000, reference: "..." } }
  * - Casso gửi: { data: [{ description: "...", amount: 6600000, tid: "..." }] }
  */
 export async function POST(req: NextRequest) {
   try {
-    const configuredSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+    const configuredSecret = (process.env.PAYMENT_WEBHOOK_SECRET || "").trim();
     if (configuredSecret) {
-      const authHeader = req.headers.get("authorization") || "";
-      const tokenHeader = req.headers.get("secure-token") || "";
-      if (
-        !authHeader.includes(configuredSecret) &&
-        tokenHeader !== configuredSecret
-      ) {
+      const authHeader = (req.headers.get("authorization") || "").trim();
+      const tokenHeader = (req.headers.get("secure-token") || "").trim();
+      const strippedAuth = authHeader.replace(/^(Apikey|Bearer)\s+/i, "").trim();
+      const isAuthorized =
+        (strippedAuth.length > 0 && safeEqual(strippedAuth, configuredSecret)) ||
+        (tokenHeader.length > 0 && safeEqual(tokenHeader, configuredSecret));
+      if (!isAuthorized) {
         return NextResponse.json({ error: "Unauthorized webhook" }, { status: 401 });
       }
     }
@@ -43,12 +52,15 @@ export async function POST(req: NextRequest) {
         ref: String(payload.data.reference || payload.data.paymentLinkId || "PAYOS-TX"),
       });
     } else {
-      // Định dạng SePay hoặc gọi giả lập trực tiếp
-      transactions.push({
-        content: String(payload.content || payload.description || payload.orderCode || ""),
-        amount: Number(payload.transferAmount ?? payload.amount ?? 0),
-        ref: String(payload.referenceCode || payload.id || `VIETQR-${Date.now()}`),
-      });
+      // Định dạng SePay (chỉ xử lý tiền vào nếu có transferType)
+      const transferType = String(payload?.transferType || "in").toLowerCase();
+      if (transferType !== "out") {
+        transactions.push({
+          content: String(payload.content || payload.description || payload.orderCode || ""),
+          amount: Number(payload.transferAmount ?? payload.amount ?? 0),
+          ref: String(payload.referenceCode || payload.id || `VIETQR-${Date.now()}`),
+        });
+      }
     }
 
     const db = await readServerDb();
@@ -88,7 +100,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       matchedOrders,
-      db,
     });
   } catch (err) {
     return NextResponse.json(
