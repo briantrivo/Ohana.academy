@@ -1,5 +1,9 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  createCommissionForPaidOrder,
+  generateReferralCode,
+} from "@/lib/affiliate";
 import { computeExtendedExpiry } from "@/lib/membership";
 import { readServerDb, writeServerDb } from "@/lib/server-db";
 
@@ -113,6 +117,26 @@ export async function POST(req: NextRequest) {
             if (course) course.studentsCount += 1;
           }
         }
+
+        // Mở quyền Affiliate cho người mua mới & tính hoa hồng (10% khóa lẻ / 20% Membership) cho người giới thiệu
+        const buyer = db.users.find((u) => u.id === order.userId);
+        if (buyer && !buyer.referralCode) {
+          buyer.referralCode = generateReferralCode(buyer.name, buyer.id);
+        }
+        const refUid = order.referrerUserId || buyer?.referredByUserId;
+        const referrer = refUid
+          ? db.users.find((u) => u.id === refUid)
+          : undefined;
+        db.affiliateCommissions = db.affiliateCommissions || [];
+        const commission = createCommissionForPaidOrder({
+          order,
+          referrer,
+          existingCommissions: db.affiliateCommissions,
+        });
+        if (commission) {
+          db.affiliateCommissions.unshift(commission);
+        }
+
         matchedOrders.push(order.orderCode);
       }
     }

@@ -74,6 +74,38 @@ export interface Course {
 export type UserRole = "student" | "internal" | "admin";
 export type AuthProviderType = "credentials" | "google";
 
+export interface AffiliatePayoutInfo {
+  bankId: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string;
+  zaloPhone?: string;
+}
+
+export type AffiliateCommissionStatus = "pending" | "paid" | "cancelled";
+
+export interface AffiliateCommission {
+  id: string;
+  orderCode: string;
+  orderType: "course" | "membership";
+  itemTitle: string;
+  orderAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  referrerUserId: string;
+  referrerName: string;
+  referrerEmail: string;
+  referrerPhone: string;
+  referralCode: string;
+  buyerUserId: string;
+  buyerName: string;
+  buyerEmail: string;
+  status: AffiliateCommissionStatus;
+  payoutNote?: string;
+  createdAt: string;
+  paidAt?: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -83,6 +115,10 @@ export interface UserProfile {
   role: UserRole;
   avatar?: string;
   authProvider?: AuthProviderType;
+  referralCode?: string;
+  referredByUserId?: string;
+  affiliateEnabled?: boolean;
+  affiliatePayout?: AffiliatePayoutInfo;
 }
 
 export interface UserRecord extends UserProfile {
@@ -113,6 +149,8 @@ export interface Order {
   status: OrderStatus;
   paymentMethod: "vietqr" | "activation_code" | "manual";
   transactionRef?: string;
+  referrerUserId?: string;
+  referralCode?: string;
   createdAt: string;
   paidAt?: string;
 }
@@ -187,6 +225,7 @@ export interface LMSDatabase {
   certificates: CertificateRecord[];
   membershipPlans: MembershipPlan[];
   subscriptions: Record<string, UserSubscription>;
+  affiliateCommissions: AffiliateCommission[];
   enrollments: Record<string, string[]>;
   progress: Record<string, Record<string, string[]>>;
   quizScores: Record<string, Record<string, number>>;

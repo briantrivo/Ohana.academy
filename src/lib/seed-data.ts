@@ -843,6 +843,7 @@ export function createInitialDatabase(): LMSDatabase {
     certificates: [],
     membershipPlans: DEFAULT_MEMBERSHIP_PLANS.map((p) => ({ ...p })),
     subscriptions: {},
+    affiliateCommissions: [],
     enrollments: {
       "user-student": ["course-free-ai-starter"],
       "user-internal": [

@@ -16,6 +16,7 @@ import {
   QrCode,
   Receipt,
   Save,
+  Share2,
 } from "lucide-react";
 import { MemberZaloCard } from "@/components/MemberZaloCard";
 import { useLMS } from "@/context/LMSContext";
@@ -28,6 +29,7 @@ export default function MyLearningPage() {
     mySubscription,
     hasActiveMembership,
     membershipRemainingDays,
+    isAffiliateEligible,
     googleEnabled,
     isLoading,
     hasCourseAccess,
@@ -255,6 +257,32 @@ export default function MyLearningPage() {
       {(hasActiveMembership || user.role === "admin") && (
         <MemberZaloCard compact />
       )}
+
+      {/* Affiliate Partner Quick Card */}
+      <div className="rounded-3xl p-5 sm:p-6 border border-emerald-500/30 bg-gradient-to-r from-emerald-950/35 via-slate-900/80 to-cyan-950/35 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+            <Share2 className="w-4 h-4" />
+            Quyền Lợi Affiliate Ohana • Hoa Hồng 10% – 20%
+          </div>
+          <div className="text-base font-bold text-white">
+            {isAffiliateEligible
+              ? "Tài khoản của bạn đã sẵn sàng nhận hoa hồng giới thiệu!"
+              : "Mua khóa học hoặc đăng ký Membership để mở link giới thiệu nhận hoa hồng"}
+          </div>
+          <div className="text-xs text-slate-300">
+            Chia sẻ link giới thiệu nhận ngay <strong>10% Khóa Thương Mại</strong> và{" "}
+            <strong>20% Gói Hội Viên Membership</strong> (trọn đời các kỳ gia hạn).
+          </div>
+        </div>
+        <Link
+          href="/affiliate"
+          className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 shrink-0 shadow-lg"
+        >
+          <Share2 className="w-4 h-4" />
+          {isAffiliateEligible ? "Mở Cổng Affiliate & Lấy Link" : "Xem Chính Sách Affiliate"}
+        </Link>
+      </div>
 
       {/* Section 1: Khóa học của tôi */}
       <section className="space-y-4">

@@ -16,6 +16,7 @@ import {
   Plus,
   Power,
   QrCode,
+  Share2,
   ShieldAlert,
   ShieldCheck,
   Tag,
@@ -24,24 +25,35 @@ import {
   UserPlus,
   Users,
   Video,
+  Wallet,
+  X,
   Zap,
 } from "lucide-react";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { useLMS } from "@/context/LMSContext";
+import { isUserAffiliateEligible } from "@/lib/affiliate";
 import {
   getRemainingDays,
   isCourseInMembership,
   isSubscriptionActive,
 } from "@/lib/membership";
-import { formatVND } from "@/lib/video";
+import { buildVietQrUrl, formatVND } from "@/lib/video";
 import {
+  AffiliateCommission,
   CourseAccessType,
   DiscountType,
   MembershipPlan,
   UserRole,
 } from "@/types/lms";
 
-type AdminTab = "courses" | "membership" | "orders" | "coupons" | "codes" | "users";
+type AdminTab =
+  | "courses"
+  | "membership"
+  | "affiliate"
+  | "orders"
+  | "coupons"
+  | "codes"
+  | "users";
 
 const OHANA_THUMBNAILS = [
   { label: "Banner Ohana AI Academy Cyber", url: "/ohana/banner_ohana_ai_academy_cyber.jpg" },
@@ -144,6 +156,12 @@ export default function AdminStudioPage() {
   const [grantDays, setGrantDays] = useState("30");
   const [grantNote, setGrantNote] = useState("Hội Viên VIP Ohana");
   const [grantMsg, setGrantMsg] = useState("");
+
+  // Affiliate Admin State
+  const [affFilter, setAffFilter] = useState<"all" | "pending" | "paid" | "cancelled">("all");
+  const [payoutModalCommission, setPayoutModalCommission] =
+    useState<AffiliateCommission | null>(null);
+  const [payoutNoteInput, setPayoutNoteInput] = useState("");
 
   const stats = useMemo(() => {
     const paidOrders = db.orders.filter((o) => o.status === "paid");
@@ -674,6 +692,36 @@ export default function AdminStudioPage() {
     }
   };
 
+  const handleAffiliateAction = async (
+    action: "mark_paid" | "mark_pending" | "cancel_commission",
+    commissionId: string,
+    payoutNote?: string
+  ) => {
+    const res = await fetch("/api/admin/affiliate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, commissionId, payoutNote }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+      setPayoutModalCommission(null);
+      setPayoutNoteInput("");
+    }
+  };
+
+  const handleToggleUserAffiliate = async (userId: string, enabled: boolean) => {
+    const res = await fetch("/api/admin/affiliate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "toggle_user_affiliate", userId, enabled }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-20 space-y-8">
       {/* Header */}
@@ -765,6 +813,19 @@ export default function AdminStudioPage() {
             ).length
           }
           )
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab("affiliate")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-all ${
+            tab === "affiliate"
+              ? "bg-emerald-500 text-slate-950"
+              : "bg-slate-900 text-emerald-300 border border-emerald-500/30 hover:border-emerald-400"
+          }`}
+        >
+          <Share2 className="w-4 h-4" /> Hoa Hồng Affiliate (
+          {(db.affiliateCommissions || []).filter((c) => c.status === "pending").length} chờ trả)
         </button>
 
         <button
@@ -1679,6 +1740,418 @@ export default function AdminStudioPage() {
           </div>
         </div>
       )}
+
+      {/* TAB: AFFILIATE COMMISSIONS & PAYOUTS */}
+      {tab === "affiliate" && (() => {
+        const allComms = db.affiliateCommissions || [];
+        const pendingTotal = allComms
+          .filter((c) => c.status === "pending")
+          .reduce((s, c) => s + c.commissionAmount, 0);
+        const paidTotal = allComms
+          .filter((c) => c.status === "paid")
+          .reduce((s, c) => s + c.commissionAmount, 0);
+        const affRevenue = allComms
+          .filter((c) => c.status !== "cancelled")
+          .reduce((s, c) => s + c.orderAmount, 0);
+        const filteredComms = allComms.filter(
+          (c) => affFilter === "all" || c.status === affFilter
+        );
+
+        const modalRefUser = payoutModalCommission
+          ? db.users.find((u) => u.id === payoutModalCommission.referrerUserId)
+          : undefined;
+        const modalPayout = modalRefUser?.affiliatePayout;
+        const modalQrUrl =
+          payoutModalCommission && modalPayout?.bankId && modalPayout?.accountNo
+            ? buildVietQrUrl({
+                amount: payoutModalCommission.commissionAmount,
+                orderCode: `HH ${payoutModalCommission.orderCode}`,
+                bankId: modalPayout.bankId,
+                accountNo: modalPayout.accountNo,
+                accountName: modalPayout.accountName,
+              })
+            : "";
+
+        return (
+          <div className="space-y-6">
+            {/* Summary KPIs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="glow-card rounded-2xl p-5 border border-amber-500/35">
+                <div className="text-xs text-amber-300 font-semibold">
+                  Hoa hồng chờ chuyển khoản
+                </div>
+                <div className="font-display text-2xl font-extrabold text-amber-300 mt-1">
+                  {formatVND(pendingTotal)}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  {allComms.filter((c) => c.status === "pending").length} giao dịch cần chi trả
+                </div>
+              </div>
+              <div className="glow-card rounded-2xl p-5 border border-emerald-500/35">
+                <div className="text-xs text-emerald-300 font-semibold">
+                  Hoa hồng đã chi trả
+                </div>
+                <div className="font-display text-2xl font-extrabold text-emerald-400 mt-1">
+                  {formatVND(paidTotal)}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  {allComms.filter((c) => c.status === "paid").length} giao dịch hoàn tất
+                </div>
+              </div>
+              <div className="glow-card rounded-2xl p-5">
+                <div className="text-xs text-slate-400 font-semibold">
+                  Tổng doanh số từ kênh Affiliate
+                </div>
+                <div className="font-display text-2xl font-extrabold text-cyan-300 mt-1">
+                  {formatVND(affRevenue)}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Tỷ lệ: 10% Khóa Thương Mại • 20% Membership
+                </div>
+              </div>
+            </div>
+
+            {/* Commissions Table */}
+            <div className="glow-card rounded-3xl overflow-hidden">
+              <div className="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-400" />
+                  Đối Soát &amp; Chi Trả Hoa Hồng Affiliate ({filteredComms.length})
+                </h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      { id: "all", label: `Tất cả (${allComms.length})` },
+                      {
+                        id: "pending",
+                        label: `Chờ trả (${allComms.filter((c) => c.status === "pending").length})`,
+                      },
+                      {
+                        id: "paid",
+                        label: `Đã trả (${allComms.filter((c) => c.status === "paid").length})`,
+                      },
+                      { id: "cancelled", label: "Đã hủy" },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setAffFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                        affFilter === f.id
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-slate-900 text-slate-300 border border-slate-800"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredComms.length === 0 ? (
+                <div className="p-10 text-center text-xs text-slate-400">
+                  Chưa có giao dịch hoa hồng Affiliate nào ở trạng thái này. Khi học viên chia sẻ link{" "}
+                  <code>?ref=...</code> và có đơn thanh toán thành công (SePay / duyệt tay), hoa hồng 10% / 20% sẽ tự động xuất hiện tại đây.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 text-slate-400 uppercase text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3">Đơn Hàng</th>
+                        <th className="px-4 py-3">Người Giới Thiệu &amp; STK Nhận Tiền</th>
+                        <th className="px-4 py-3">Khách Mua</th>
+                        <th className="px-4 py-3">Hoa Hồng</th>
+                        <th className="px-4 py-3">Trạng Thái</th>
+                        <th className="px-4 py-3 text-right">Chi Trả</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80">
+                      {filteredComms.map((c) => {
+                        const refUser = db.users.find((u) => u.id === c.referrerUserId);
+                        const payout = refUser?.affiliatePayout;
+                        return (
+                          <tr key={c.id} className="hover:bg-slate-900/40 align-top">
+                            <td className="px-4 py-3">
+                              <div className="font-mono font-bold text-cyan-300">
+                                {c.orderCode}
+                              </div>
+                              <div className="text-slate-200 max-w-[200px] truncate mt-0.5">
+                                {c.itemTitle}
+                              </div>
+                              <span
+                                className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  c.orderType === "membership"
+                                    ? "bg-amber-500/15 text-amber-300"
+                                    : "bg-cyan-500/15 text-cyan-300"
+                                }`}
+                              >
+                                {c.orderType === "membership"
+                                  ? `Membership (${Math.round(c.commissionRate * 100)}%)`
+                                  : `Khóa lẻ (${Math.round(c.commissionRate * 100)}%)`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-white">
+                                {refUser?.name || c.referrerName}{" "}
+                                <span className="font-mono text-[10px] text-cyan-300">
+                                  ({c.referralCode})
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400">
+                                Zalo: {payout?.zaloPhone || refUser?.phone || c.referrerPhone || "Chưa cập nhật"} •{" "}
+                                {c.referrerEmail}
+                              </div>
+                              {payout?.accountNo ? (
+                                <div className="mt-1 p-2 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-emerald-300">
+                                  {payout.bankId} • {payout.accountNo} • {payout.accountName}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-[11px] text-amber-300">
+                                  ⚠ Chưa khai báo STK — liên hệ Zalo để lấy STK
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-white">{c.buyerName}</div>
+                              <div className="text-[11px] text-slate-400">{c.buyerEmail}</div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                Đơn: {formatVND(c.orderAmount)}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-display font-extrabold text-sm text-emerald-400 whitespace-nowrap">
+                              {formatVND(c.commissionAmount)}
+                            </td>
+                            <td className="px-4 py-3">
+                              {c.status === "paid" ? (
+                                <div>
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
+                                    <CheckCircle2 className="w-3 h-3" /> Đã chi trả
+                                  </span>
+                                  {c.paidAt && (
+                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                      {new Date(c.paidAt).toLocaleDateString("vi-VN")}
+                                    </div>
+                                  )}
+                                  {c.payoutNote && (
+                                    <div className="text-[10px] text-slate-400 mt-0.5">
+                                      {c.payoutNote}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : c.status === "cancelled" ? (
+                                <span className="px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 text-[11px] font-bold">
+                                  Đã hủy
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-bold">
+                                  Chờ chuyển khoản
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right space-y-1.5 whitespace-nowrap">
+                              {c.status === "pending" ? (
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPayoutModalCommission(c);
+                                      setPayoutNoteInput(
+                                        `Đã chuyển khoản hoa hồng đơn ${c.orderCode}`
+                                      );
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <QrCode className="w-3.5 h-3.5" />
+                                    {payout?.accountNo ? "QR Chuyển Tiền" : "Xác Nhận Trả"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAffiliateAction("cancel_commission", c.id)
+                                    }
+                                    className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[11px] font-bold cursor-pointer"
+                                  >
+                                    Hủy
+                                  </button>
+                                </div>
+                              ) : c.status === "paid" ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAffiliateAction("mark_pending", c.id)
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold cursor-pointer"
+                                >
+                                  Đưa về chờ trả
+                                </button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Partner Eligibility Management */}
+            <div className="glow-card rounded-3xl p-6 space-y-4">
+              <div>
+                <h2 className="font-display text-lg font-bold text-white">
+                  Danh Sách Quyền Affiliate Của Tài Khoản ({db.users.length})
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Học viên đã mua khóa học / Membership và Nhân sự nội bộ tự động được mở Affiliate. Anh có thể bấm bật thủ công cho bất kỳ CTV ngoài nào tại đây.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {db.users.map((u) => {
+                  const eligible = isUserAffiliateEligible(
+                    u,
+                    db.orders || [],
+                    db.subscriptions || {}
+                  );
+                  return (
+                    <div
+                      key={u.id}
+                      className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-white truncate">
+                            {u.name}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              eligible
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : "bg-slate-800 text-slate-400"
+                            }`}
+                          >
+                            {eligible ? "Đang mở Affiliate" : "Chưa mở"}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                          {u.email}
+                          {u.referralCode ? ` • Mã: ${u.referralCode}` : ""}
+                        </div>
+                        {u.affiliatePayout?.accountNo && (
+                          <div className="text-[10px] font-mono text-cyan-300 mt-0.5">
+                            STK: {u.affiliatePayout.bankId} {u.affiliatePayout.accountNo} (
+                            {u.affiliatePayout.accountName})
+                          </div>
+                        )}
+                      </div>
+                      {u.role === "student" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleToggleUserAffiliate(u.id, !u.affiliateEnabled)
+                          }
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 cursor-pointer ${
+                            u.affiliateEnabled
+                              ? "bg-amber-500/15 text-amber-300 border-amber-500/35"
+                              : "bg-emerald-500/15 text-emerald-300 border-emerald-500/35"
+                          }`}
+                        >
+                          {u.affiliateEnabled ? "Tắt cấp tay" : "+ Bật quyền CTV"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Payout VietQR Modal */}
+            {payoutModalCommission && (
+              <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+                <div className="w-full max-w-md rounded-3xl bg-[#0B101D] border border-emerald-500/40 p-6 relative shadow-2xl space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => setPayoutModalCommission(null)}
+                    className="absolute top-4 right-4 p-2 rounded-full bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                      Chi Trả Hoa Hồng Affiliate
+                    </span>
+                    <h3 className="font-display text-xl font-extrabold text-white mt-0.5">
+                      {formatVND(payoutModalCommission.commissionAmount)} →{" "}
+                      {modalRefUser?.name || payoutModalCommission.referrerName}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Đơn {payoutModalCommission.orderCode} • Zalo:{" "}
+                      {modalPayout?.zaloPhone || modalRefUser?.phone || "Chưa có SĐT"}
+                    </p>
+                  </div>
+
+                  {modalQrUrl && modalPayout ? (
+                    <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-900/90 border border-slate-800">
+                      <div className="bg-white p-2.5 rounded-2xl w-48">
+                        <img
+                          src={modalQrUrl}
+                          alt="VietQR Chi Trả Hoa Hồng"
+                          className="w-full h-auto rounded-xl"
+                        />
+                      </div>
+                      <div className="text-center text-xs space-y-0.5">
+                        <div className="font-bold text-cyan-300">
+                          {modalPayout.bankName}
+                        </div>
+                        <div className="font-mono font-extrabold text-white text-sm">
+                          {modalPayout.accountNo} • {modalPayout.accountName}
+                        </div>
+                        <div className="text-[11px] text-amber-300 font-mono">
+                          Nội dung: HH {payoutModalCommission.orderCode}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200">
+                      Học viên này chưa nhập Số tài khoản ngân hàng trong trang /affiliate. Anh liên hệ qua SĐT/Email để nhận STK, chuyển khoản xong rồi bấm nút xác nhận bên dưới nhé.
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Ghi chú giao dịch / Mã tham chiếu
+                    </label>
+                    <input
+                      type="text"
+                      value={payoutNoteInput}
+                      onChange={(e) => setPayoutNoteInput(e.target.value)}
+                      placeholder="VD: Đã chuyển khoản ACB ngày 28/11"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleAffiliateAction(
+                        "mark_paid",
+                        payoutModalCommission.id,
+                        payoutNoteInput
+                      )
+                    }
+                    className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs inline-flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Xác Nhận Đã Chuyển Khoản Hoa Hồng
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* TAB: COMMERCIAL DISCOUNT COUPONS */}
       {tab === "coupons" && (

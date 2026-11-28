@@ -159,6 +159,10 @@ export default function MembershipPage() {
     await updateUserProfile({ name: fullName, phone });
 
     try {
+      let storedRef = "";
+      try {
+        storedRef = window.localStorage.getItem("ohana_ref") || "";
+      } catch {}
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,6 +173,7 @@ export default function MembershipPage() {
           customerEmail: email,
           customerPhone: phone,
           couponCode: appliedCoupon?.code || "",
+          referralCode: storedRef,
         }),
       });
       const data = await res.json();

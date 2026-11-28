@@ -72,6 +72,36 @@ create table if not exists ohana_subscriptions (
   updated_at timestamptz not null default now()
 );
 
+alter table ohana_users add column if not exists referral_code text;
+alter table ohana_users add column if not exists referred_by_user_id text;
+alter table ohana_users add column if not exists affiliate_enabled boolean not null default false;
+alter table ohana_users add column if not exists affiliate_payout jsonb;
+
+alter table ohana_orders add column if not exists referrer_user_id text;
+alter table ohana_orders add column if not exists referral_code text;
+
+create table if not exists ohana_affiliate_commissions (
+  id text primary key,
+  order_code text unique not null,
+  order_type text not null default 'course',
+  item_title text not null,
+  order_amount bigint not null default 0,
+  commission_rate numeric(5,4) not null default 0.10,
+  commission_amount bigint not null default 0,
+  referrer_user_id text not null,
+  referrer_name text not null,
+  referrer_email text not null,
+  referrer_phone text default '',
+  referral_code text not null,
+  buyer_user_id text not null,
+  buyer_name text not null,
+  buyer_email text not null,
+  status text not null default 'pending',
+  payout_note text,
+  created_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+
 create table if not exists ohana_activation_codes (
   code text primary key,
   label text not null,
@@ -143,3 +173,4 @@ alter table ohana_lesson_progress enable row level security;
 alter table ohana_quiz_scores enable row level security;
 alter table ohana_membership_plans enable row level security;
 alter table ohana_subscriptions enable row level security;
+alter table ohana_affiliate_commissions enable row level security;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AFFILIATE_COOKIE_NAME, isUserAffiliateEligible } from "@/lib/affiliate";
 import {
   isHttpsRequest,
   isValidInternalRedirect,
@@ -107,6 +108,17 @@ export async function GET(req: NextRequest) {
       const adminEmail = (
         process.env.ADMIN_EMAIL || "brian@astronixa.com"
       ).toLowerCase();
+      const refCookie = (req.cookies.get(AFFILIATE_COOKIE_NAME)?.value || "")
+        .trim()
+        .toUpperCase();
+      const referrer = refCookie
+        ? db.users.find(
+            (u) =>
+              (u.referralCode || "").toUpperCase() === refCookie &&
+              u.email.toLowerCase() !== emailLower &&
+              isUserAffiliateEligible(u, db.orders || [], db.subscriptions || {})
+          )
+        : undefined;
       user = {
         id: `user-gg-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
         name: profile.name || emailLower.split("@")[0],
@@ -116,6 +128,7 @@ export async function GET(req: NextRequest) {
         avatar: profile.picture,
         authProvider: "google",
         googleSub: profile.sub,
+        referredByUserId: referrer?.id,
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
       };

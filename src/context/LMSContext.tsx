@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { isUserAffiliateEligible } from "@/lib/affiliate";
 import {
   canAccessCourseWithMembership,
   getRemainingDays,
@@ -30,6 +31,7 @@ interface LMSContextValue {
   hasActiveMembership: boolean;
   membershipRemainingDays: number;
   memberZaloGroupUrl: string | null;
+  isAffiliateEligible: boolean;
   googleEnabled: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
@@ -169,6 +171,11 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
     user && db.subscriptions ? db.subscriptions[user.id] || null : null;
   const hasActiveMembership = isSubscriptionActive(mySubscription);
   const membershipRemainingDays = getRemainingDays(mySubscription);
+  const isAffiliateEligible = isUserAffiliateEligible(
+    user,
+    db.orders || [],
+    db.subscriptions || {}
+  );
 
   const hasCourseAccess = useCallback(
     (course: Course): boolean => {
@@ -316,6 +323,7 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
         hasActiveMembership,
         membershipRemainingDays,
         memberZaloGroupUrl,
+        isAffiliateEligible,
         googleEnabled,
         isLoading,
         login,

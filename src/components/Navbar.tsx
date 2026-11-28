@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogIn,
   LogOut,
+  Share2,
   Sparkles,
   User,
   X,
@@ -127,6 +128,20 @@ export function Navbar() {
               >
                 <Award className="w-4 h-4" />
                 Góc Học Tập &amp; Chứng Chỉ
+              </Link>
+            )}
+
+            {user && (
+              <Link
+                href="/affiliate"
+                className={`px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 ${
+                  pathname.startsWith("/affiliate")
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/35 font-semibold"
+                    : "text-emerald-300/90 hover:text-emerald-200 hover:bg-emerald-500/10"
+                }`}
+              >
+                <Share2 className="w-4 h-4 text-emerald-400" />
+                Affiliate
               </Link>
             )}
 

@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  AFFILIATE_COOKIE_NAME,
+  createCommissionForPaidOrder,
+  generateReferralCode,
+  resolveReferrerForOrder,
+} from "@/lib/affiliate";
 import { buildClientStateView, getAuthUser } from "@/lib/auth";
 import { evaluateCoupon } from "@/lib/coupons";
 import {
@@ -43,6 +49,23 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const db = await readServerDb();
+    db.affiliateCommissions = db.affiliateCommissions || [];
+    const buyerRecord = db.users.find((u) => u.id === authUser.id);
+    const cookieRef = req.cookies.get(AFFILIATE_COOKIE_NAME)?.value || "";
+    const explicitRefCode = String(body.referralCode || cookieRef || "").trim();
+    const matchedReferrer = buyerRecord
+      ? resolveReferrerForOrder({
+          buyer: buyerRecord,
+          explicitRefCode,
+          users: db.users,
+          orders: db.orders || [],
+          subscriptions: db.subscriptions || {},
+        })
+      : null;
+    if (matchedReferrer && buyerRecord && !buyerRecord.referredByUserId) {
+      buyerRecord.referredByUserId = matchedReferrer.id;
+    }
+
     const isMembershipOrder = orderType === "membership" || Boolean(planId);
 
     if (isMembershipOrder) {
@@ -95,6 +118,8 @@ export async function POST(req: NextRequest) {
         couponCode: appliedCouponCode,
         status: finalAmount === 0 ? "paid" : "pending",
         paymentMethod: "vietqr",
+        referrerUserId: matchedReferrer?.id,
+        referralCode: matchedReferrer?.referralCode,
         createdAt: new Date().toISOString(),
         paidAt: finalAmount === 0 ? new Date().toISOString() : undefined,
       };
@@ -158,6 +183,7 @@ export async function POST(req: NextRequest) {
 
     const newOrder: Order = {
       orderCode,
+      orderType: "course",
       courseId: course.id,
       courseSlug: course.slug,
       courseTitle: course.title,
@@ -171,6 +197,8 @@ export async function POST(req: NextRequest) {
       couponCode: appliedCouponCode,
       status: finalAmount === 0 ? "paid" : "pending",
       paymentMethod: "vietqr",
+      referrerUserId: matchedReferrer?.id,
+      referralCode: matchedReferrer?.referralCode,
       createdAt: new Date().toISOString(),
       paidAt: finalAmount === 0 ? new Date().toISOString() : undefined,
     };
@@ -263,6 +291,25 @@ export async function PATCH(req: NextRequest) {
           db.enrollments[order.userId].push(order.courseId);
           const c = db.courses.find((item) => item.id === order.courseId);
           if (c) c.studentsCount += 1;
+        }
+      }
+      if (!wasAlreadyPaid) {
+        const buyer = db.users.find((u) => u.id === order.userId);
+        if (buyer && !buyer.referralCode) {
+          buyer.referralCode = generateReferralCode(buyer.name, buyer.id);
+        }
+        const refUid = order.referrerUserId || buyer?.referredByUserId;
+        const referrer = refUid
+          ? db.users.find((u) => u.id === refUid)
+          : undefined;
+        db.affiliateCommissions = db.affiliateCommissions || [];
+        const commission = createCommissionForPaidOrder({
+          order,
+          referrer,
+          existingCommissions: db.affiliateCommissions,
+        });
+        if (commission) {
+          db.affiliateCommissions.unshift(commission);
         }
       }
       await writeServerDb(db);

@@ -93,6 +93,10 @@ export function sanitizeUser(user: UserRecord): UserProfile {
     role: user.role,
     avatar: user.avatar,
     authProvider: user.authProvider,
+    referralCode: user.referralCode,
+    referredByUserId: user.referredByUserId,
+    affiliateEnabled: user.affiliateEnabled,
+    affiliatePayout: user.affiliatePayout,
   };
 }
 

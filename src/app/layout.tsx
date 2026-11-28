@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { LMSProvider } from "@/context/LMSContext";
 import { Navbar } from "@/components/Navbar";
+import { ReferralTracker } from "@/components/ReferralTracker";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin", "vietnamese"],
@@ -32,6 +33,7 @@ export default function RootLayout({
     <html lang="vi" className={`${jakarta.variable} ${spaceGrotesk.variable}`}>
       <body className="tech-grid min-h-screen flex flex-col antialiased">
         <LMSProvider>
+          <ReferralTracker />
           <Navbar />
           <main className="flex-1">{children}</main>
           <footer className="border-t border-slate-900 bg-[#04060B] py-10 text-xs text-slate-400 print:hidden">

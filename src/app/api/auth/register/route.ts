@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AFFILIATE_COOKIE_NAME, isUserAffiliateEligible } from "@/lib/affiliate";
 import { buildClientStateView, setSessionCookie } from "@/lib/auth";
 import { hashPassword, sanitizeUser } from "@/lib/auth-crypto";
 import { readServerDb, writeServerDb } from "@/lib/server-db";
@@ -83,6 +84,18 @@ export async function POST(req: NextRequest) {
       codeObj.usedCount += 1;
     }
 
+    const refCookie = (req.cookies.get(AFFILIATE_COOKIE_NAME)?.value || "")
+      .trim()
+      .toUpperCase();
+    const referrer = refCookie
+      ? db.users.find(
+          (u) =>
+            (u.referralCode || "").toUpperCase() === refCookie &&
+            u.email.toLowerCase() !== email &&
+            isUserAffiliateEligible(u, db.orders || [], db.subscriptions || {})
+        )
+      : undefined;
+
     const newUser: UserRecord = {
       id: `user-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
       name,
@@ -92,6 +105,7 @@ export async function POST(req: NextRequest) {
       role,
       authProvider: "credentials",
       passwordHash: hashPassword(password),
+      referredByUserId: referrer?.id,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
     };

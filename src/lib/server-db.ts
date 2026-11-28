@@ -11,6 +11,8 @@ import {
 } from "@/lib/supabase";
 import {
   ActivationCode,
+  AffiliateCommission,
+  AffiliatePayoutInfo,
   CertificateRecord,
   CouponRecord,
   Course,
@@ -121,6 +123,10 @@ function readLocalJsonDb(): LMSDatabase {
       parsed.subscriptions = {};
       mutated = true;
     }
+    if (!Array.isArray(parsed.affiliateCommissions)) {
+      parsed.affiliateCommissions = [];
+      mutated = true;
+    }
     if (mutated) {
       fs.writeFileSync(filePath, JSON.stringify(parsed, null, 2), "utf-8");
     }
@@ -159,6 +165,7 @@ export async function readServerDb(): Promise<LMSDatabase> {
       certsRes,
       plansRes,
       subsRes,
+      affRes,
       enrollRes,
       progRes,
       quizRes,
@@ -171,6 +178,7 @@ export async function readServerDb(): Promise<LMSDatabase> {
       sb.from("ohana_certificates").select("*").order("issued_at", { ascending: false }),
       sb.from("ohana_membership_plans").select("*").order("sort_order", { ascending: true }),
       sb.from("ohana_subscriptions").select("*").order("expires_at", { ascending: false }),
+      sb.from("ohana_affiliate_commissions").select("*").order("created_at", { ascending: false }),
       sb.from("ohana_enrollments").select("*"),
       sb.from("ohana_lesson_progress").select("*"),
       sb.from("ohana_quiz_scores").select("*"),
@@ -202,6 +210,13 @@ export async function readServerDb(): Promise<LMSDatabase> {
       authProvider: (row.auth_provider as "credentials" | "google") || "credentials",
       googleSub: row.google_sub ? String(row.google_sub) : undefined,
       passwordHash: row.password_hash ? String(row.password_hash) : undefined,
+      referralCode: row.referral_code ? String(row.referral_code) : undefined,
+      referredByUserId: row.referred_by_user_id ? String(row.referred_by_user_id) : undefined,
+      affiliateEnabled: Boolean(row.affiliate_enabled),
+      affiliatePayout:
+        row.affiliate_payout && typeof row.affiliate_payout === "object"
+          ? (row.affiliate_payout as AffiliatePayoutInfo)
+          : undefined,
       createdAt: String(row.created_at),
       lastLoginAt: row.last_login_at ? String(row.last_login_at) : undefined,
     }));
@@ -230,6 +245,8 @@ export async function readServerDb(): Promise<LMSDatabase> {
       status: (row.status as Order["status"]) || "pending",
       paymentMethod: (row.payment_method as Order["paymentMethod"]) || "vietqr",
       transactionRef: row.transaction_ref ? String(row.transaction_ref) : undefined,
+      referrerUserId: row.referrer_user_id ? String(row.referrer_user_id) : undefined,
+      referralCode: row.referral_code ? String(row.referral_code) : undefined,
       createdAt: String(row.created_at),
       paidAt: row.paid_at ? String(row.paid_at) : undefined,
     }));
@@ -307,6 +324,31 @@ export async function readServerDb(): Promise<LMSDatabase> {
       }
     }
 
+    const affiliateCommissions: AffiliateCommission[] =
+      !affRes.error && affRes.data
+        ? affRes.data.map((row) => ({
+            id: String(row.id),
+            orderCode: String(row.order_code),
+            orderType: row.order_type === "membership" ? "membership" : "course",
+            itemTitle: String(row.item_title || ""),
+            orderAmount: Number(row.order_amount || 0),
+            commissionRate: Number(row.commission_rate || 0.1),
+            commissionAmount: Number(row.commission_amount || 0),
+            referrerUserId: String(row.referrer_user_id),
+            referrerName: String(row.referrer_name || ""),
+            referrerEmail: String(row.referrer_email || ""),
+            referrerPhone: String(row.referrer_phone || ""),
+            referralCode: String(row.referral_code || ""),
+            buyerUserId: String(row.buyer_user_id),
+            buyerName: String(row.buyer_name || ""),
+            buyerEmail: String(row.buyer_email || ""),
+            status: (row.status as AffiliateCommission["status"]) || "pending",
+            payoutNote: row.payout_note ? String(row.payout_note) : undefined,
+            createdAt: String(row.created_at),
+            paidAt: row.paid_at ? String(row.paid_at) : undefined,
+          }))
+        : [];
+
     const enrollments: Record<string, string[]> = {};
     for (const row of enrollRes.data || []) {
       const uid = String(row.user_id);
@@ -342,6 +384,7 @@ export async function readServerDb(): Promise<LMSDatabase> {
       certificates,
       membershipPlans,
       subscriptions,
+      affiliateCommissions,
       enrollments,
       progress,
       quizScores,
@@ -375,6 +418,10 @@ export async function writeServerDb(db: LMSDatabase): Promise<LMSDatabase> {
           auth_provider: u.authProvider || "credentials",
           google_sub: u.googleSub || null,
           password_hash: u.passwordHash || null,
+          referral_code: u.referralCode || null,
+          referred_by_user_id: u.referredByUserId || null,
+          affiliate_enabled: Boolean(u.affiliateEnabled),
+          affiliate_payout: u.affiliatePayout || null,
           created_at: u.createdAt,
           last_login_at: u.lastLoginAt || null,
         })),
@@ -426,6 +473,8 @@ export async function writeServerDb(db: LMSDatabase): Promise<LMSDatabase> {
           status: o.status,
           payment_method: o.paymentMethod,
           transaction_ref: o.transactionRef || null,
+          referrer_user_id: o.referrerUserId || null,
+          referral_code: o.referralCode || null,
           created_at: o.createdAt,
           paid_at: o.paidAt || null,
         })),
@@ -534,6 +583,33 @@ export async function writeServerDb(db: LMSDatabase): Promise<LMSDatabase> {
       await sb
         .from("ohana_subscriptions")
         .upsert(subRows, { onConflict: "user_id" });
+    }
+
+    if ((db.affiliateCommissions || []).length > 0) {
+      await sb.from("ohana_affiliate_commissions").upsert(
+        (db.affiliateCommissions || []).map((c) => ({
+          id: c.id,
+          order_code: c.orderCode,
+          order_type: c.orderType,
+          item_title: c.itemTitle,
+          order_amount: c.orderAmount,
+          commission_rate: c.commissionRate,
+          commission_amount: c.commissionAmount,
+          referrer_user_id: c.referrerUserId,
+          referrer_name: c.referrerName,
+          referrer_email: c.referrerEmail,
+          referrer_phone: c.referrerPhone || "",
+          referral_code: c.referralCode,
+          buyer_user_id: c.buyerUserId,
+          buyer_name: c.buyerName,
+          buyer_email: c.buyerEmail,
+          status: c.status,
+          payout_note: c.payoutNote || null,
+          created_at: c.createdAt,
+          paid_at: c.paidAt || null,
+        })),
+        { onConflict: "order_code" }
+      );
     }
 
     const enrollmentRows: { user_id: string; course_id: string }[] = [];

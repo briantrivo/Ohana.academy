@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { maskEmail } from "@/lib/affiliate";
 import {
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
@@ -107,6 +108,7 @@ export function buildClientStateView(
       certificates: [],
       membershipPlans: activePlans,
       subscriptions: {},
+      affiliateCommissions: [],
       enrollments: {},
       progress: {},
       quizScores: {},
@@ -123,6 +125,7 @@ export function buildClientStateView(
       certificates: db.certificates,
       membershipPlans: db.membershipPlans || [],
       subscriptions: db.subscriptions || {},
+      affiliateCommissions: db.affiliateCommissions || [],
       enrollments: db.enrollments,
       progress: db.progress,
       quizScores: db.quizScores,
@@ -130,6 +133,12 @@ export function buildClientStateView(
   }
 
   const ownSub = db.subscriptions?.[uid];
+  const ownCommissions = (db.affiliateCommissions || [])
+    .filter((c) => c.referrerUserId === uid)
+    .map((c) => ({
+      ...c,
+      buyerEmail: maskEmail(c.buyerEmail),
+    }));
   return {
     users: [],
     courses: safeCourses,
@@ -141,6 +150,7 @@ export function buildClientStateView(
     ),
     membershipPlans: activePlans,
     subscriptions: ownSub ? { [uid]: ownSub } : {},
+    affiliateCommissions: ownCommissions,
     enrollments: {
       [uid]: db.enrollments[uid] || [],
     },
