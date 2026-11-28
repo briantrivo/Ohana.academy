@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildClientStateView, getAuthUser } from "@/lib/auth";
 import { evaluateCoupon } from "@/lib/coupons";
+import {
+  canAccessCourseWithMembership,
+  computeExtendedExpiry,
+} from "@/lib/membership";
 import { readServerDb, writeServerDb } from "@/lib/server-db";
 import { ActivationCode, CertificateRecord, Course, LMSDatabase, Order, UserProfile } from "@/types/lms";
 
@@ -9,9 +13,12 @@ function userCanAccessCourse(
   user: UserProfile,
   course: Course
 ): boolean {
-  if (user.role === "admin") return true;
-  if (course.accessType === "internal" && user.role === "internal") return true;
-  return (db.enrollments[user.id] || []).includes(course.id);
+  return canAccessCourseWithMembership(
+    course,
+    user,
+    db.enrollments[user.id] || [],
+    db.subscriptions?.[user.id]
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -25,10 +32,104 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { courseId, customerName, customerEmail, customerPhone, couponCode } =
-      body;
+    const {
+      orderType,
+      planId,
+      courseId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      couponCode,
+    } = body;
 
     const db = await readServerDb();
+    const isMembershipOrder = orderType === "membership" || Boolean(planId);
+
+    if (isMembershipOrder) {
+      const plan = (db.membershipPlans || []).find(
+        (p) => p.id === planId && p.active
+      );
+      if (!plan) {
+        return NextResponse.json(
+          { error: "Gói Hội viên không tồn tại hoặc đang tạm ngưng." },
+          { status: 404 }
+        );
+      }
+
+      let discountAmount = 0;
+      let appliedCouponCode: string | undefined;
+      const normalizedCoupon = String(couponCode || "").trim().toUpperCase();
+      if (normalizedCoupon) {
+        const evaluation = evaluateCoupon(
+          db.coupons || [],
+          normalizedCoupon,
+          `membership:${plan.id}`,
+          plan.price
+        );
+        if (!evaluation.valid) {
+          return NextResponse.json({ error: evaluation.error }, { status: 400 });
+        }
+        discountAmount = evaluation.discountAmount;
+        appliedCouponCode = evaluation.coupon.code;
+      }
+
+      const finalAmount = Math.max(0, plan.price - discountAmount);
+      const randomDigits = Math.floor(100000 + Math.random() * 900000);
+      const orderCode = `OHANA${randomDigits}`;
+
+      const newOrder: Order = {
+        orderCode,
+        orderType: "membership",
+        planId: plan.id,
+        durationDays: plan.durationDays,
+        courseId: `membership:${plan.id}`,
+        courseSlug: "membership",
+        courseTitle: `${plan.name} (${plan.durationDays} ngày)`,
+        userId: authUser.id,
+        customerName: String(customerName || authUser.name).trim(),
+        customerEmail: String(customerEmail || authUser.email).trim(),
+        customerPhone: String(customerPhone || authUser.phone || "").trim(),
+        originalAmount: plan.price,
+        discountAmount,
+        finalAmount,
+        couponCode: appliedCouponCode,
+        status: finalAmount === 0 ? "paid" : "pending",
+        paymentMethod: "vietqr",
+        createdAt: new Date().toISOString(),
+        paidAt: finalAmount === 0 ? new Date().toISOString() : undefined,
+      };
+
+      db.orders.unshift(newOrder);
+
+      if (finalAmount === 0) {
+        if (appliedCouponCode) {
+          const usedCoupon = (db.coupons || []).find(
+            (c) => c.code.toUpperCase() === appliedCouponCode
+          );
+          if (usedCoupon) usedCoupon.usedCount += 1;
+        }
+        db.subscriptions = db.subscriptions || {};
+        const prevSub = db.subscriptions[authUser.id];
+        const extended = computeExtendedExpiry(prevSub?.expiresAt, plan.durationDays);
+        db.subscriptions[authUser.id] = {
+          userId: authUser.id,
+          planId: plan.id,
+          planName: plan.name,
+          startedAt: prevSub?.startedAt || extended.startedAt,
+          expiresAt: extended.expiresAt,
+          lastOrderCode: orderCode,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      await writeServerDb(db);
+      return NextResponse.json({
+        success: true,
+        order: newOrder,
+        db: buildClientStateView(db, authUser),
+      });
+    }
+
     const course = db.courses.find((c) => c.id === courseId);
     if (!course) {
       return NextResponse.json({ error: "Không tìm thấy khóa học." }, { status: 404 });
@@ -140,11 +241,29 @@ export async function PATCH(req: NextRequest) {
         );
         if (usedCoupon) usedCoupon.usedCount += 1;
       }
-      if (!db.enrollments[order.userId]) db.enrollments[order.userId] = [];
-      if (!db.enrollments[order.userId].includes(order.courseId)) {
-        db.enrollments[order.userId].push(order.courseId);
-        const c = db.courses.find((item) => item.id === order.courseId);
-        if (c) c.studentsCount += 1;
+      if (order.orderType === "membership") {
+        if (!wasAlreadyPaid) {
+          db.subscriptions = db.subscriptions || {};
+          const prevSub = db.subscriptions[order.userId];
+          const days = order.durationDays || 30;
+          const extended = computeExtendedExpiry(prevSub?.expiresAt, days);
+          db.subscriptions[order.userId] = {
+            userId: order.userId,
+            planId: order.planId || "plan-monthly",
+            planName: order.courseTitle,
+            startedAt: prevSub?.startedAt || extended.startedAt,
+            expiresAt: extended.expiresAt,
+            lastOrderCode: order.orderCode,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+      } else {
+        if (!db.enrollments[order.userId]) db.enrollments[order.userId] = [];
+        if (!db.enrollments[order.userId].includes(order.courseId)) {
+          db.enrollments[order.userId].push(order.courseId);
+          const c = db.courses.find((item) => item.id === order.courseId);
+          if (c) c.studentsCount += 1;
+        }
       }
       await writeServerDb(db);
       return NextResponse.json({

@@ -7,8 +7,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const code = String(body.code || "").trim();
     const courseId = String(body.courseId || "").trim();
+    const planId = String(body.planId || "").trim();
 
-    if (!code || !courseId) {
+    if (!code || (!courseId && !planId)) {
       return NextResponse.json(
         { valid: false, error: "Vui lòng nhập mã ưu đãi hợp lệ." },
         { status: 400 }
@@ -16,15 +17,34 @@ export async function POST(req: NextRequest) {
     }
 
     const db = await readServerDb();
-    const course = db.courses.find((c) => c.id === courseId);
-    if (!course) {
-      return NextResponse.json(
-        { valid: false, error: "Không tìm thấy khóa học." },
-        { status: 404 }
+    let targetId = courseId;
+    let basePrice = 0;
+
+    if (planId) {
+      const plan = (db.membershipPlans || []).find(
+        (p) => p.id === planId && p.active
       );
+      if (!plan) {
+        return NextResponse.json(
+          { valid: false, error: "Không tìm thấy gói Hội viên." },
+          { status: 404 }
+        );
+      }
+      targetId = `membership:${plan.id}`;
+      basePrice = plan.price;
+    } else {
+      const course = db.courses.find((c) => c.id === courseId);
+      if (!course) {
+        return NextResponse.json(
+          { valid: false, error: "Không tìm thấy khóa học." },
+          { status: 404 }
+        );
+      }
+      targetId = course.id;
+      basePrice = course.price;
     }
 
-    const result = evaluateCoupon(db.coupons || [], code, course.id, course.price);
+    const result = evaluateCoupon(db.coupons || [], code, targetId, basePrice);
     if (!result.valid) {
       return NextResponse.json(
         { valid: false, error: result.error },

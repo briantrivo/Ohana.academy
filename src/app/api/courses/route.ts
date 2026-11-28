@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
       certificateIssuer:
         body.certificateIssuer || "Ohana Academy — Astronixa Ecosystem",
       internalPasscode: body.internalPasscode,
+      includedInMembership:
+        body.accessType === "membership"
+          ? true
+          : Boolean(body.includedInMembership),
       chapters: body.chapters || [],
       createdAt: body.createdAt || new Date().toISOString(),
     };

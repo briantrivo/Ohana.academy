@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Crown,
   ExternalLink,
   Gift,
   KeyRound,
@@ -473,7 +474,17 @@ export default function CourseDetailPage() {
                 </div>
 
                 <div className="p-6 space-y-5">
-                  {course.accessType === "internal" ? (
+                  {course.accessType === "membership" ? (
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-display flex items-center gap-2">
+                        <Crown className="w-6 h-6 text-amber-400" />
+                        Từ 299.000đ/tháng
+                      </div>
+                      <div className="text-xs text-emerald-400 font-semibold mt-1">
+                        ✓ Hội viên Ohana Membership — Học không giới hạn bài cập nhật mới
+                      </div>
+                    </div>
+                  ) : course.accessType === "internal" ? (
                     <div className="p-3.5 rounded-2xl bg-purple-500/15 border border-purple-500/30">
                       <div className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
                         <Building2 className="w-4 h-4" /> Chương Trình Đào Tạo Nội Bộ
@@ -555,14 +566,33 @@ export default function CourseDetailPage() {
                         Hoặc đăng ký tài khoản mới kèm mã nhân sự nội bộ
                       </div>
                     </div>
-                  ) : (
+                  ) : course.accessType === "membership" ? (
                     <Link
-                      href={`/checkout/${course.slug}`}
-                      className="w-full py-3.5 px-5 rounded-xl btn-gradient text-white font-extrabold text-sm flex items-center justify-center gap-2"
+                      href="/membership"
+                      className="w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:opacity-95 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg"
                     >
-                      <QrCode className="w-5 h-5" />
-                      Đăng Ký &amp; Thanh Toán VietQR
+                      <Crown className="w-5 h-5" />
+                      Đăng Ký / Gia Hạn Hội Viên VIP
                     </Link>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <Link
+                        href={`/checkout/${course.slug}`}
+                        className="w-full py-3.5 px-5 rounded-xl btn-gradient text-white font-extrabold text-sm flex items-center justify-center gap-2"
+                      >
+                        <QrCode className="w-5 h-5" />
+                        Đăng Ký &amp; Thanh Toán VietQR
+                      </Link>
+                      {course.includedInMembership && (
+                        <Link
+                          href="/membership"
+                          className="w-full py-3 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5"
+                        >
+                          <Crown className="w-4 h-4" />
+                          Hoặc học ngay qua Gói Hội Viên Membership →
+                        </Link>
+                      )}
+                    </div>
                   )}
 
                   {course.gifts && course.gifts.length > 0 && (

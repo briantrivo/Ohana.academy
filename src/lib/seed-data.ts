@@ -1,3 +1,4 @@
+import { DEFAULT_MEMBERSHIP_PLANS } from "@/lib/membership";
 import { ActivationCode, Course, LMSDatabase } from "@/types/lms";
 
 export const OHANA_BANK_CONFIG = {
@@ -30,7 +31,78 @@ export const INITIAL_ACTIVATION_CODES: ActivationCode[] = [
   },
 ];
 
+export const SAMPLE_MEMBERSHIP_COURSE: Course = {
+  id: "course-ohana-ai-membership-hub",
+  slug: "kho-bai-hoc-ai-cap-nhat-hang-thang",
+  title: "OHANA AI MEMBERSHIP — Kho Bài Học AI & Automation Cập Nhật Hàng Tháng",
+  subtitle:
+    "Thư viện bài giảng thực chiến cập nhật liên tục mỗi tuần/tháng dành riêng cho Hội viên Ohana Membership: công cụ AI mới nhất, quy trình tạo nội dung, tự động hóa bán hàng và bộ Prompt ứng dụng ngay.",
+  category: "Hội Viên Membership",
+  accessType: "membership",
+  includedInMembership: true,
+  price: 0,
+  thumbnail: "/ohana/banner_ohana_ai_mastery_cyber.jpg",
+  introVideoUrl: "https://www.youtube.com/watch?v=CZDqmPXM26A",
+  scheduleInfo: "Cập nhật bài học & bộ Prompt mới liên tục hàng tuần cho Hội viên còn hạn",
+  instructor: {
+    name: "Brian Võ (Võ Quốc Trí)",
+    role: "Market Director & AI Strategist — Astronixa Ohana",
+    avatar: "/ohana/astronixa_logo.jpg",
+  },
+  level: "Cập nhật liên tục",
+  totalDuration: "Cập nhật hàng tuần",
+  studentsCount: 128,
+  rating: 5.0,
+  badge: "Hội Viên VIP • Cập Nhật Mới",
+  highlights: [
+    "Học không giới hạn toàn bộ bài giảng AI, Video & Automation mới đăng mỗi tuần",
+    "Tải trọn bộ file Prompt, kịch bản bán hàng và tài liệu đính kèm trong từng bài",
+    "Chủ động đăng ký theo tháng / quý / năm — tự động cộng dồn ngày khi gia hạn",
+    "Lưu trọn đời tiến độ học tập kể cả khi tạm ngưng gia hạn",
+  ],
+  certificateIssuer: "Ohana AI Academy — Astronixa Ecosystem",
+  chapters: [
+    {
+      id: "ch-mem-2026-11",
+      title: "Cập Nhật Tháng 11/2026 — AI Ứng Dụng Kinh Doanh & Nội Dung Tự Động",
+      subtitle: "Các chuyên đề thực chiến mới nhất dành riêng cho Hội viên Ohana Membership",
+      lessons: [
+        {
+          id: "les-mem-01",
+          title: "Định Hướng Kho Hội Viên & Lộ Trình Cập Nhật Công Cụ AI Hàng Tháng",
+          duration: "08:30",
+          videoUrl: "https://www.youtube.com/watch?v=CZDqmPXM26A",
+          isFreePreview: true,
+          publishedAt: "2026-11-28T08:00:00.000Z",
+          summary:
+            "Giới thiệu cách khai thác hiệu quả thư viện bài học cập nhật hàng tháng, bộ tài liệu đính kèm và lộ trình thực hành ra kết quả nhanh nhất cho Hội viên Ohana.",
+        },
+        {
+          id: "les-mem-02",
+          title: "Cập Nhật #01: Quy Trình Sản Xuất Video AI & Poster Đa Kênh Trong 15 Phút",
+          duration: "14:49",
+          videoUrl: "https://www.youtube.com/watch?v=7f0yY02oI_M&list=PLfgrGuKaRnYY",
+          publishedAt: "2026-11-27T09:00:00.000Z",
+          summary:
+            "Cập nhật công thức kết hợp bộ công cụ AI tạo ảnh thương hiệu, viết kịch bản bán hàng và dựng video ngắn chuyển đổi cao cho chủ kinh doanh.",
+        },
+        {
+          id: "les-mem-03",
+          title: "Cập Nhật #02: Xây Dựng Hệ Thống AI Tự Động Hóa Chăm Sóc & Chốt Đơn",
+          duration: "12:53",
+          videoUrl: "https://www.youtube.com/watch?v=06sP-j1P3_E&list=PLetC2FIqwUZM",
+          publishedAt: "2026-11-25T09:00:00.000Z",
+          summary:
+            "Hướng dẫn triển khai trợ lý AI hỗ trợ tư vấn khách hàng, cá nhân hóa nội dung chăm sóc và tối ưu hiệu suất làm việc nhóm.",
+        },
+      ],
+    },
+  ],
+  createdAt: "2026-11-28T08:00:00.000Z",
+};
+
 export const INITIAL_COURSES: Course[] = [
+  SAMPLE_MEMBERSHIP_COURSE,
   {
     id: "course-ohana-ai-academy",
     slug: "ohana-ai-academy-thuc-chien",
@@ -769,6 +841,8 @@ export function createInitialDatabase(): LMSDatabase {
     coupons: [],
     activationCodes: INITIAL_ACTIVATION_CODES,
     certificates: [],
+    membershipPlans: DEFAULT_MEMBERSHIP_PLANS.map((p) => ({ ...p })),
+    subscriptions: {},
     enrollments: {
       "user-student": ["course-free-ai-starter"],
       "user-internal": [

@@ -95,6 +95,8 @@ export function buildClientStateView(
     return rest;
   });
 
+  const activePlans = (db.membershipPlans || []).filter((p) => p.active);
+
   if (!authUser || !uid) {
     return {
       users: [],
@@ -103,6 +105,8 @@ export function buildClientStateView(
       coupons: [],
       activationCodes: [],
       certificates: [],
+      membershipPlans: activePlans,
+      subscriptions: {},
       enrollments: {},
       progress: {},
       quizScores: {},
@@ -117,12 +121,15 @@ export function buildClientStateView(
       coupons: db.coupons || [],
       activationCodes: db.activationCodes,
       certificates: db.certificates,
+      membershipPlans: db.membershipPlans || [],
+      subscriptions: db.subscriptions || {},
       enrollments: db.enrollments,
       progress: db.progress,
       quizScores: db.quizScores,
     };
   }
 
+  const ownSub = db.subscriptions?.[uid];
   return {
     users: [],
     courses: safeCourses,
@@ -132,6 +139,8 @@ export function buildClientStateView(
     certificates: db.certificates.filter(
       (c) => c.studentEmail.toLowerCase() === authUser.email.toLowerCase()
     ),
+    membershipPlans: activePlans,
+    subscriptions: ownSub ? { [uid]: ownSub } : {},
     enrollments: {
       [uid]: db.enrollments[uid] || [],
     },

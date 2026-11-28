@@ -8,6 +8,7 @@ import {
   BookOpen,
   Building2,
   CheckCircle2,
+  Crown,
   PlayCircle,
   QrCode,
   Search,
@@ -30,7 +31,10 @@ export default function HomePage() {
   const filteredCourses = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return db.courses.filter((course) => {
-      const matchTab = activeTab === "all" || course.accessType === activeTab;
+      const matchTab =
+        activeTab === "all" ||
+        course.accessType === activeTab ||
+        (activeTab === "membership" && Boolean(course.includedInMembership));
       const matchQuery =
         !q ||
         course.title.toLowerCase().includes(q) ||
@@ -43,6 +47,9 @@ export default function HomePage() {
   const counts = useMemo(() => {
     return {
       all: db.courses.length,
+      membership: db.courses.filter(
+        (c) => c.accessType === "membership" || Boolean(c.includedInMembership)
+      ).length,
       commercial: db.courses.filter((c) => c.accessType === "commercial").length,
       internal: db.courses.filter((c) => c.accessType === "internal").length,
       free: db.courses.filter((c) => c.accessType === "free").length,
@@ -240,10 +247,12 @@ export default function HomePage() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-2 mb-8">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+        <div className="flex flex-wrap items-center gap-2">
           {(
             [
               { id: "all", label: `Tất cả (${counts.all})` },
+              { id: "membership", label: `Hội Viên Membership (${counts.membership})` },
               { id: "commercial", label: `Khóa Thương Mại (${counts.commercial})` },
               { id: "internal", label: `Đào Tạo Nội Bộ (${counts.internal})` },
               { id: "free", label: `Cộng Đồng Miễn Phí (${counts.free})` },
@@ -262,6 +271,15 @@ export default function HomePage() {
               {tab.label}
             </button>
           ))}
+        </div>
+        <Link
+          href="/membership"
+          className="px-4 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 text-amber-300 text-xs font-extrabold inline-flex items-center gap-1.5 transition-all"
+        >
+          <Crown className="w-3.5 h-3.5" />
+          Đăng Ký Hội Viên Từ 299k/tháng
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
         </div>
 
         {/* Course Grid */}

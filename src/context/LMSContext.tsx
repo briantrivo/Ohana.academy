@@ -1,12 +1,18 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  canAccessCourseWithMembership,
+  getRemainingDays,
+  isSubscriptionActive,
+} from "@/lib/membership";
 import { createInitialDatabase } from "@/lib/seed-data";
 import {
   CertificateRecord,
   Course,
   LMSDatabase,
   UserProfile,
+  UserSubscription,
 } from "@/types/lms";
 
 interface RegisterInput {
@@ -20,6 +26,9 @@ interface RegisterInput {
 interface LMSContextValue {
   db: LMSDatabase;
   user: UserProfile | null;
+  mySubscription: UserSubscription | null;
+  hasActiveMembership: boolean;
+  membershipRemainingDays: number;
   googleEnabled: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
@@ -146,17 +155,23 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const mySubscription: UserSubscription | null =
+    user && db.subscriptions ? db.subscriptions[user.id] || null : null;
+  const hasActiveMembership = isSubscriptionActive(mySubscription);
+  const membershipRemainingDays = getRemainingDays(mySubscription);
+
   const hasCourseAccess = useCallback(
     (course: Course): boolean => {
       if (!user) return false;
-      if (user.role === "admin") return true;
-      if (course.accessType === "internal" && user.role === "internal") {
-        return true;
-      }
       const userEnrolled = db.enrollments[user.id] || [];
-      return userEnrolled.includes(course.id);
+      return canAccessCourseWithMembership(
+        course,
+        user,
+        userEnrolled,
+        mySubscription
+      );
     },
-    [db.enrollments, user]
+    [db.enrollments, mySubscription, user]
   );
 
   const getCourseProgress = useCallback(
@@ -287,6 +302,9 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
       value={{
         db,
         user,
+        mySubscription,
+        hasActiveMembership,
+        membershipRemainingDays,
         googleEnabled,
         isLoading,
         login,

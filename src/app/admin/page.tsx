@@ -5,8 +5,10 @@ import Link from "next/link";
 import {
   BookOpen,
   Building2,
+  CalendarClock,
   CheckCircle2,
   Copy,
+  Crown,
   ExternalLink,
   KeyRound,
   LayoutDashboard,
@@ -26,10 +28,20 @@ import {
 } from "lucide-react";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { useLMS } from "@/context/LMSContext";
+import {
+  getRemainingDays,
+  isCourseInMembership,
+  isSubscriptionActive,
+} from "@/lib/membership";
 import { formatVND } from "@/lib/video";
-import { CourseAccessType, DiscountType, UserRole } from "@/types/lms";
+import {
+  CourseAccessType,
+  DiscountType,
+  MembershipPlan,
+  UserRole,
+} from "@/types/lms";
 
-type AdminTab = "courses" | "orders" | "coupons" | "codes" | "users";
+type AdminTab = "courses" | "membership" | "orders" | "coupons" | "codes" | "users";
 
 const OHANA_THUMBNAILS = [
   { label: "Banner Ohana AI Academy Cyber", url: "/ohana/banner_ohana_ai_academy_cyber.jpg" },
@@ -49,6 +61,7 @@ export default function AdminStudioPage() {
   const [subtitle, setSubtitle] = useState("");
   const [category, setCategory] = useState("AI Kinh Doanh");
   const [accessType, setAccessType] = useState<CourseAccessType>("commercial");
+  const [includedInMembership, setIncludedInMembership] = useState(false);
   const [price, setPrice] = useState("1990000");
   const [originalPrice, setOriginalPrice] = useState("3990000");
   const [thumbnail, setThumbnail] = useState(OHANA_THUMBNAILS[0].url);
@@ -103,6 +116,34 @@ export default function AdminStudioPage() {
   const [couponMsg, setCouponMsg] = useState("");
   const [couponErr, setCouponErr] = useState("");
   const [copiedCouponLink, setCopiedCouponLink] = useState("");
+
+  // Membership Admin State
+  const [updCourseId, setUpdCourseId] = useState("course-ohana-ai-membership-hub");
+  const [updChapterTitle, setUpdChapterTitle] = useState("Cập Nhật Tháng 12/2026 — Bài Học AI Mới");
+  const [updLessonTitle, setUpdLessonTitle] = useState("");
+  const [updDuration, setUpdDuration] = useState("15:00");
+  const [updVideoUrl, setUpdVideoUrl] = useState("");
+  const [updSummary, setUpdSummary] = useState("");
+  const [updPreview, setUpdPreview] = useState(false);
+  const [updMsg, setUpdMsg] = useState("");
+  const [updErr, setUpdErr] = useState("");
+
+  const [mPlanId, setMPlanId] = useState("");
+  const [mPlanName, setMPlanName] = useState("");
+  const [mPlanSubtitle, setMPlanSubtitle] = useState("");
+  const [mPlanDays, setMPlanDays] = useState("30");
+  const [mPlanPrice, setMPlanPrice] = useState("299000");
+  const [mPlanOriginal, setMPlanOriginal] = useState("499000");
+  const [mPlanBadge, setMPlanBadge] = useState("");
+  const [mPlanFeatures, setMPlanFeatures] = useState(
+    "Mở khóa toàn bộ Kho Bài Học Cập Nhật Hàng Tháng\nTải trọn bộ file Prompt & tài liệu đính kèm"
+  );
+  const [mPlanMsg, setMPlanMsg] = useState("");
+
+  const [grantUserId, setGrantUserId] = useState("");
+  const [grantDays, setGrantDays] = useState("30");
+  const [grantNote, setGrantNote] = useState("Hội Viên VIP Ohana");
+  const [grantMsg, setGrantMsg] = useState("");
 
   const stats = useMemo(() => {
     const paidOrders = db.orders.filter((o) => o.status === "paid");
@@ -198,6 +239,8 @@ export default function AdminStudioPage() {
       subtitle: subtitle.trim() || "Chương trình đào tạo thực chiến của Ohana Academy.",
       category,
       accessType,
+      includedInMembership:
+        accessType === "membership" ? true : includedInMembership,
       price: accessType === "commercial" ? Number(price || 0) : 0,
       originalPrice:
         accessType === "commercial" && Number(originalPrice) > Number(price)
@@ -205,7 +248,9 @@ export default function AdminStudioPage() {
           : undefined,
       thumbnail,
       badge:
-        accessType === "internal"
+        accessType === "membership"
+          ? "Hội Viên VIP • Cập Nhật"
+          : accessType === "internal"
           ? "Đào Tạo Nội Bộ"
           : accessType === "free"
           ? "Miễn phí 100%"
@@ -222,6 +267,7 @@ export default function AdminStudioPage() {
             videoUrl: l.videoUrl,
             summary: l.summary,
             isFreePreview: l.isFreePreview,
+            publishedAt: new Date().toISOString(),
           })),
         },
       ],
@@ -450,6 +496,184 @@ export default function AdminStudioPage() {
     setTimeout(() => setCopiedCouponLink(""), 2200);
   };
 
+  const handleAddUpdatedLesson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdMsg("");
+    setUpdErr("");
+    const targetCourse =
+      db.courses.find((c) => c.id === updCourseId) ||
+      db.courses.find((c) => isCourseInMembership(c)) ||
+      db.courses[0];
+    if (!targetCourse) {
+      setUpdErr("Chưa có khóa học nào trong hệ thống.");
+      return;
+    }
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add_updated_lesson",
+        courseId: targetCourse.id,
+        chapterTitle: updChapterTitle,
+        lessonTitle: updLessonTitle,
+        duration: updDuration,
+        videoUrl: updVideoUrl,
+        summary: updSummary,
+        isFreePreview: updPreview,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setUpdErr(data.error || "Không thể đăng bài cập nhật.");
+      return;
+    }
+    if (data.db) setDbState(data.db);
+    setUpdLessonTitle("");
+    setUpdVideoUrl("");
+    setUpdSummary("");
+    setUpdPreview(false);
+    setUpdMsg(`✓ Đã đăng bài học cập nhật mới lên "${targetCourse.title}" và bảng tin /membership!`);
+  };
+
+  const handleEditPlan = (p: MembershipPlan) => {
+    setMPlanId(p.id);
+    setMPlanName(p.name);
+    setMPlanSubtitle(p.subtitle);
+    setMPlanDays(String(p.durationDays));
+    setMPlanPrice(String(p.price));
+    setMPlanOriginal(p.originalPrice ? String(p.originalPrice) : "");
+    setMPlanBadge(p.badge || "");
+    setMPlanFeatures((p.features || []).join("\n"));
+    setMPlanMsg("");
+  };
+
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMPlanMsg("");
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_plan",
+        id: mPlanId || undefined,
+        name: mPlanName,
+        subtitle: mPlanSubtitle,
+        durationDays: Number(mPlanDays || 30),
+        price: Number(mPlanPrice || 0),
+        originalPrice: mPlanOriginal ? Number(mPlanOriginal) : undefined,
+        badge: mPlanBadge,
+        featuresText: mPlanFeatures,
+        active: true,
+        sortOrder:
+          (db.membershipPlans || []).find((p) => p.id === mPlanId)?.sortOrder ||
+          (db.membershipPlans || []).length + 1,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.db) {
+      setDbState(data.db);
+      setMPlanId("");
+      setMPlanName("");
+      setMPlanSubtitle("");
+      setMPlanBadge("");
+      setMPlanMsg(`✓ Đã lưu gói "${data.plan.name}" lên Supabase!`);
+    } else {
+      setMPlanMsg(data.error || "Không thể lưu gói.");
+    }
+  };
+
+  const handleTogglePlan = async (id: string, active: boolean) => {
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "toggle_plan", id, active }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_plan", id }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleToggleCourseMembership = async (courseId: string, included: boolean) => {
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "toggle_course_membership",
+        courseId,
+        included,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleGrantDays = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGrantMsg("");
+    const targetUid = grantUserId || db.users.find((u) => u.role !== "admin")?.id;
+    if (!targetUid) return;
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "grant_days",
+        userId: targetUid,
+        days: Number(grantDays || 30),
+        planName: grantNote,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.db) {
+      setDbState(data.db);
+      setGrantMsg(
+        `✓ Đã cộng +${grantDays} ngày Hội viên (hết hạn ${new Date(
+          data.subscription.expiresAt
+        ).toLocaleDateString("vi-VN")})!`
+      );
+    } else {
+      setGrantMsg(data.error || "Không thể cấp ngày.");
+    }
+  };
+
+  const handleQuickExtendSub = async (userId: string, days: number) => {
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "grant_days", userId, days }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
+  const handleRevokeSub = async (userId: string) => {
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "revoke_subscription", userId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.db) setDbState(data.db);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-20 space-y-8">
       {/* Header */}
@@ -523,6 +747,24 @@ export default function AdminStudioPage() {
           }`}
         >
           <Video className="w-4 h-4" /> Khóa Học (YouTube / Vimeo)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab("membership")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-all ${
+            tab === "membership"
+              ? "bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950"
+              : "bg-slate-900 text-amber-300 border border-amber-500/30 hover:border-amber-400"
+          }`}
+        >
+          <Crown className="w-4 h-4" /> Hội Viên Membership (
+          {
+            Object.values(db.subscriptions || {}).filter((s) =>
+              isSubscriptionActive(s)
+            ).length
+          }
+          )
         </button>
 
         <button
@@ -627,6 +869,7 @@ export default function AdminStudioPage() {
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-cyan-400"
                   >
                     <option value="commercial">Hướng 2: Bán Thương Mại (VietQR)</option>
+                    <option value="membership">Hướng 3: Hội Viên Membership (Đóng hàng tháng)</option>
                     <option value="internal">Hướng 1: Đào Tạo Nội Bộ (Ẩn giá)</option>
                     <option value="free">Hướng 1/2: Cộng Đồng Miễn Phí (0đ)</option>
                   </select>
@@ -646,6 +889,7 @@ export default function AdminStudioPage() {
               </div>
 
               {accessType === "commercial" && (
+                <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -669,6 +913,16 @@ export default function AdminStudioPage() {
                       className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-cyan-400"
                     />
                   </div>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-amber-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includedInMembership}
+                    onChange={(e) => setIncludedInMembership(e.target.checked)}
+                    className="rounded border-slate-700"
+                  />
+                  Cho phép Hội viên Membership đang còn hạn cũng được học khóa này
+                </label>
                 </div>
               )}
 
@@ -935,6 +1189,492 @@ export default function AdminStudioPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: MEMBERSHIP MANAGEMENT */}
+      {tab === "membership" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left column: Quick Post Updated Lesson + Manual Grant Days */}
+          <div className="lg:col-span-5 space-y-6">
+            <form
+              onSubmit={handleAddUpdatedLesson}
+              className="glow-card rounded-3xl p-6 space-y-4 border border-amber-500/30"
+            >
+              <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
+                <Crown className="w-5 h-5 text-amber-400" />
+                Đăng Bài Học Cập Nhật Mới Cho Hội Viên
+              </h2>
+              <p className="text-xs text-slate-400">
+                Video mới đăng sẽ tự động gắn ngày cập nhật và hiện ngay trên đầu bảng tin{" "}
+                <strong className="text-amber-300">/membership</strong> cho Hội viên còn hạn.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Chọn khóa học Membership *
+                </label>
+                <select
+                  value={updCourseId}
+                  onChange={(e) => setUpdCourseId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                >
+                  {db.courses
+                    .filter((c) => isCourseInMembership(c))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Tên chương / Đợt cập nhật
+                </label>
+                <input
+                  type="text"
+                  value={updChapterTitle}
+                  onChange={(e) => setUpdChapterTitle(e.target.value)}
+                  placeholder="VD: Cập Nhật Tháng 12/2026"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-12 gap-2.5">
+                <div className="col-span-8">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Tiêu đề bài học mới *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={updLessonTitle}
+                    onChange={(e) => setUpdLessonTitle(e.target.value)}
+                    placeholder="VD: Cập Nhật #03: Tạo Video Viral..."
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+                <div className="col-span-4">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Thời lượng
+                  </label>
+                  <input
+                    type="text"
+                    value={updDuration}
+                    onChange={(e) => setUpdDuration(e.target.value)}
+                    placeholder="18:30"
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Link Video YouTube / Vimeo *
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={updVideoUrl}
+                  onChange={(e) => setUpdVideoUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-cyan-300"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Mô tả ngắn nội dung bài học
+                </label>
+                <textarea
+                  rows={2}
+                  value={updSummary}
+                  onChange={(e) => setUpdSummary(e.target.value)}
+                  placeholder="Học viên sẽ áp dụng được gì ngay sau video này..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={updPreview}
+                  onChange={(e) => setUpdPreview(e.target.checked)}
+                />
+                Cho phép khách xem thử miễn phí bài này
+              </label>
+
+              {updErr && (
+                <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-300 text-xs font-semibold">
+                  {updErr}
+                </div>
+              )}
+              {updMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-xs font-semibold">
+                  {updMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-xs cursor-pointer"
+              >
+                + Đăng Bài Học Cập Nhật Ngay
+              </button>
+            </form>
+
+            <form
+              onSubmit={handleGrantDays}
+              className="glow-card rounded-3xl p-6 space-y-4"
+            >
+              <h2 className="font-display text-lg font-bold text-white flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-cyan-400" />
+                Cấp / Gia Hạn Ngày Hội Viên Thủ Công
+              </h2>
+              <p className="text-xs text-slate-400">
+                Dùng khi khách chuyển khoản qua Zalo/Offline hoặc tặng ngày Membership VIP (tự cộng dồn nếu đang còn hạn).
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Chọn tài khoản học viên *
+                </label>
+                <select
+                  value={grantUserId}
+                  onChange={(e) => setGrantUserId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                >
+                  <option value="">-- Chọn học viên --</option>
+                  {db.users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Số ngày cộng thêm *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={grantDays}
+                    onChange={(e) => setGrantDays(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Tên gói hiển thị
+                  </label>
+                  <input
+                    type="text"
+                    value={grantNote}
+                    onChange={(e) => setGrantNote(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              {grantMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-xs font-semibold">
+                  {grantMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl btn-gradient text-white font-bold text-xs cursor-pointer"
+              >
+                Kích Hoạt / Cộng Dồn Ngày Ngay
+              </button>
+            </form>
+          </div>
+
+          {/* Right column: Plans Manager + Included Courses + Subscribers List */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* Plans Manager */}
+            <div className="glow-card rounded-3xl p-6 space-y-4">
+              <h2 className="font-display text-lg font-bold text-white">
+                Các Gói Hội Viên Định Kỳ ({(db.membershipPlans || []).length})
+              </h2>
+
+              <div className="space-y-3">
+                {(db.membershipPlans || []).map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-white">{p.name}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-bold">
+                          {formatVND(p.price)} / {p.durationDays} ngày
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            p.active
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-slate-800 text-slate-400"
+                          }`}
+                        >
+                          {p.active ? "Đang mở bán" : "Đang tắt"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">{p.subtitle}</div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleEditPlan(p)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold cursor-pointer"
+                      >
+                        Sửa giá
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePlan(p.id, !p.active)}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/35 text-xs font-bold cursor-pointer"
+                      >
+                        {p.active ? "Tắt" : "Bật"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePlan(p.id)}
+                        className="p-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <form
+                onSubmit={handleSavePlan}
+                className="pt-4 border-t border-slate-800 space-y-3"
+              >
+                <div className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                  {mPlanId ? `Đang sửa gói: ${mPlanId}` : "Thêm Gói Membership Mới"}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    required
+                    value={mPlanName}
+                    onChange={(e) => setMPlanName(e.target.value)}
+                    placeholder="Tên gói (VD: Gói Hội Viên 1 Tháng)"
+                    className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                  />
+                  <input
+                    type="text"
+                    value={mPlanBadge}
+                    onChange={(e) => setMPlanBadge(e.target.value)}
+                    placeholder="Nhãn nổi bật (VD: Phổ biến nhất)"
+                    className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Số ngày *</label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={mPlanDays}
+                      onChange={(e) => setMPlanDays(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Giá bán (VNĐ) *</label>
+                    <input
+                      type="number"
+                      min={1000}
+                      required
+                      value={mPlanPrice}
+                      onChange={(e) => setMPlanPrice(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Giá gốc</label>
+                    <input
+                      type="number"
+                      value={mPlanOriginal}
+                      onChange={(e) => setMPlanOriginal(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                    />
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={mPlanSubtitle}
+                  onChange={(e) => setMPlanSubtitle(e.target.value)}
+                  placeholder="Mô tả ngắn dưới tên gói"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+                <textarea
+                  rows={2}
+                  value={mPlanFeatures}
+                  onChange={(e) => setMPlanFeatures(e.target.value)}
+                  placeholder="Mỗi dòng là 1 gạch đầu dòng quyền lợi"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"
+                />
+                {mPlanMsg && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-xs font-semibold">
+                    {mPlanMsg}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 rounded-xl btn-gradient text-white font-bold text-xs cursor-pointer"
+                  >
+                    {mPlanId ? "Cập Nhật Gói Này" : "+ Lưu Gói Mới"}
+                  </button>
+                  {mPlanId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMPlanId("");
+                        setMPlanName("");
+                        setMPlanSubtitle("");
+                        setMPlanBadge("");
+                      }}
+                      className="px-3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer"
+                    >
+                      Hủy sửa
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Courses Included in Membership */}
+            <div className="glow-card rounded-3xl p-6 space-y-3">
+              <h2 className="font-display text-lg font-bold text-white">
+                Khóa Học Nằm Trong Quyền Lợi Membership
+              </h2>
+              <p className="text-xs text-slate-400">
+                Tích chọn khóa học thương mại nào anh muốn mở thêm cho Hội viên (khóa lẻ 6.6tr mặc định Tắt để bán riêng).
+              </p>
+              <div className="space-y-2.5">
+                {db.courses
+                  .filter((c) => c.accessType === "membership" || c.accessType === "commercial")
+                  .map((c) => {
+                    const included = isCourseInMembership(c);
+                    return (
+                      <div
+                        key={c.id}
+                        className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3"
+                      >
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold text-white">
+                            {c.title}
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {c.accessType === "membership"
+                              ? "Khóa chuyên biệt Membership"
+                              : `Khóa thương mại (${formatVND(c.price)})`}
+                          </div>
+                        </div>
+                        {c.accessType === "membership" ? (
+                          <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-bold shrink-0">
+                            Mặc định có
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleToggleCourseMembership(c.id, !included)
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border shrink-0 cursor-pointer ${
+                              included
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+                            }`}
+                          >
+                            {included ? "✓ Đang mở cho VIP" : "Đang bán lẻ riêng"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Active & Past Subscribers */}
+            <div className="glow-card rounded-3xl p-6 space-y-3">
+              <h2 className="font-display text-lg font-bold text-white">
+                Danh Sách Hội Viên ({Object.keys(db.subscriptions || {}).length})
+              </h2>
+              {Object.keys(db.subscriptions || {}).length === 0 ? (
+                <div className="p-6 text-center rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+                  Chưa có hội viên nào đăng ký. Khi khách thanh toán gói trên /membership hoặc anh cấp ngày ở khung bên trái, danh sách sẽ hiện tại đây.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {Object.values(db.subscriptions || {}).map((sub) => {
+                    const member = db.users.find((u) => u.id === sub.userId);
+                    const active = isSubscriptionActive(sub);
+                    const daysLeft = getRemainingDays(sub);
+                    return (
+                      <div
+                        key={sub.userId}
+                        className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-white">
+                              {member?.name || sub.userId}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                active
+                                  ? "bg-emerald-500/20 text-emerald-300"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}
+                            >
+                              {active ? `Còn ${daysLeft} ngày` : "Đã hết hạn"}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400 mt-0.5">
+                            {member?.email || ""} • {sub.planName} • Hết hạn:{" "}
+                            {new Date(sub.expiresAt).toLocaleDateString("vi-VN")}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickExtendSub(sub.userId, 30)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/35 text-xs font-bold cursor-pointer"
+                          >
+                            +30 ngày
+                          </button>
+                          {active && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeSub(sub.userId)}
+                              className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/35 text-xs font-bold cursor-pointer"
+                            >
+                              Ngưng hạn
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

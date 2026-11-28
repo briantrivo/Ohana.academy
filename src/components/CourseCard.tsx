@@ -8,6 +8,7 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  Crown,
   Lock,
   PlayCircle,
   Star,
@@ -27,7 +28,13 @@ export function CourseCard({ course }: { course: Course }) {
   );
 
   const typeBadge =
-    course.accessType === "internal"
+    course.accessType === "membership"
+      ? {
+          text: course.badge || "Hội Viên VIP • Cập Nhật",
+          cls: "bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-300/60",
+          icon: <Crown className="w-3 h-3" />,
+        }
+      : course.accessType === "internal"
       ? {
           text: "Đào Tạo Nội Bộ",
           cls: "bg-purple-600/90 text-white border-purple-400/40",
@@ -132,7 +139,16 @@ export function CourseCard({ course }: { course: Course }) {
       {/* Footer Price & CTA */}
       <div className="px-5 pb-5 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-3">
         <div>
-          {course.accessType === "internal" ? (
+          {course.accessType === "membership" ? (
+            <div>
+              <span className="text-sm font-extrabold text-amber-300 font-display flex items-center gap-1">
+                <Crown className="w-3.5 h-3.5" /> Từ 299.000đ/tháng
+              </span>
+              <span className="block text-[11px] text-slate-400">
+                Gói Hội Viên Cập Nhật
+              </span>
+            </div>
+          ) : course.accessType === "internal" ? (
             <div>
               <span className="text-xs text-purple-300 font-bold flex items-center gap-1">
                 <Lock className="w-3.5 h-3.5" /> Nội bộ Ohana
@@ -156,6 +172,11 @@ export function CourseCard({ course }: { course: Course }) {
               <span className="text-lg font-extrabold text-cyan-300 font-display">
                 {formatVND(course.price)}
               </span>
+              {course.includedInMembership && (
+                <span className="block text-[10px] text-amber-300 font-semibold">
+                  ★ Có trong Gói Hội Viên
+                </span>
+              )}
             </div>
           )}
         </div>

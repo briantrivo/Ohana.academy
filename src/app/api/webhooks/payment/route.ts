@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { computeExtendedExpiry } from "@/lib/membership";
 import { readServerDb, writeServerDb } from "@/lib/server-db";
 
 function safeEqual(a: string, b: string): boolean {
@@ -88,13 +89,29 @@ export async function POST(req: NextRequest) {
           if (usedCoupon) usedCoupon.usedCount += 1;
         }
 
-        if (!db.enrollments[order.userId]) {
-          db.enrollments[order.userId] = [];
-        }
-        if (!db.enrollments[order.userId].includes(order.courseId)) {
-          db.enrollments[order.userId].push(order.courseId);
-          const course = db.courses.find((c) => c.id === order.courseId);
-          if (course) course.studentsCount += 1;
+        if (order.orderType === "membership") {
+          db.subscriptions = db.subscriptions || {};
+          const prevSub = db.subscriptions[order.userId];
+          const days = order.durationDays || 30;
+          const extended = computeExtendedExpiry(prevSub?.expiresAt, days);
+          db.subscriptions[order.userId] = {
+            userId: order.userId,
+            planId: order.planId || "plan-monthly",
+            planName: order.courseTitle,
+            startedAt: prevSub?.startedAt || extended.startedAt,
+            expiresAt: extended.expiresAt,
+            lastOrderCode: order.orderCode,
+            updatedAt: new Date().toISOString(),
+          };
+        } else {
+          if (!db.enrollments[order.userId]) {
+            db.enrollments[order.userId] = [];
+          }
+          if (!db.enrollments[order.userId].includes(order.courseId)) {
+            db.enrollments[order.userId].push(order.courseId);
+            const course = db.courses.find((c) => c.id === order.courseId);
+            if (course) course.studentsCount += 1;
+          }
         }
         matchedOrders.push(order.orderCode);
       }

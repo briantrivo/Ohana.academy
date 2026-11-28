@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { canAccessCourseWithMembership } from "@/lib/membership";
 import { readServerDb } from "@/lib/server-db";
 import {
   SUPABASE_RESOURCES_BUCKET,
@@ -52,11 +53,14 @@ export async function GET(
             break;
           }
           if (authUser) {
-            if (course.accessType === "internal" && authUser.role === "internal") {
-              authorized = true;
-              break;
-            }
-            if ((db.enrollments[authUser.id] || []).includes(course.id)) {
+            if (
+              canAccessCourseWithMembership(
+                course,
+                authUser,
+                db.enrollments[authUser.id] || [],
+                db.subscriptions?.[authUser.id]
+              )
+            ) {
               authorized = true;
               break;
             }

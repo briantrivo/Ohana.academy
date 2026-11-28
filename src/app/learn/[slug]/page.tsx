@@ -9,6 +9,7 @@ import {
   Award,
   CheckCircle2,
   Circle,
+  Crown,
   Download,
   FileText,
   HelpCircle,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { useLMS } from "@/context/LMSContext";
+import { isCourseInMembership } from "@/lib/membership";
 import { Lesson } from "@/types/lms";
 
 function formatBytes(bytes?: number): string {
@@ -38,6 +40,8 @@ export default function LearnCoursePage() {
   const {
     db,
     user,
+    mySubscription,
+    hasActiveMembership,
     setDbState,
     hasCourseAccess,
     getCourseProgress,
@@ -684,11 +688,22 @@ export default function LearnCoursePage() {
                 <Lock className="w-8 h-8 text-purple-300" />
               </div>
               <h2 className="font-display text-2xl font-extrabold text-white">
-                Nội Dung Dành Cho Học Viên Đã Kích Hoạt
+                {isCourseInMembership(course) && mySubscription && !hasActiveMembership
+                  ? "Gói Hội Viên Membership Đã Hết Hạn"
+                  : isCourseInMembership(course)
+                  ? "Nội Dung Dành Riêng Cho Hội Viên Membership"
+                  : "Nội Dung Dành Cho Học Viên Đã Kích Hoạt"}
               </h2>
               <p className="text-sm text-slate-300 max-w-lg mx-auto">
-                Bạn đang xem chế độ khách. Hãy kích hoạt khóa học qua VietQR hoặc
-                nhập mã nội bộ để mở khóa toàn bộ bài giảng và nhận chứng chỉ.
+                {isCourseInMembership(course) && mySubscription && !hasActiveMembership
+                  ? `Gói Hội viên của bạn đã hết hạn vào ngày ${new Date(
+                      mySubscription.expiresAt
+                    ).toLocaleDateString(
+                      "vi-VN"
+                    )}. Toàn bộ tiến độ học tập cũ vẫn được giữ nguyên — hãy gia hạn ngay để tiếp tục xem bài mới.`
+                  : isCourseInMembership(course)
+                  ? "Đăng ký gói Hội viên Ohana Membership (từ 299.000đ/tháng) để mở khóa trọn bộ kho bài học cập nhật liên tục và tải toàn bộ tài liệu đính kèm."
+                  : "Bạn đang xem chế độ khách. Hãy kích hoạt khóa học qua VietQR hoặc nhập mã nội bộ để mở khóa toàn bộ bài giảng và nhận chứng chỉ."}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 {!user && (
@@ -699,7 +714,17 @@ export default function LearnCoursePage() {
                     Đăng Nhập Tài Khoản
                   </Link>
                 )}
-                {course.accessType === "commercial" ? (
+                {isCourseInMembership(course) ? (
+                  <Link
+                    href="/membership"
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-sm font-extrabold inline-flex items-center gap-2 shadow-lg"
+                  >
+                    <Crown className="w-4 h-4" />
+                    {mySubscription && !hasActiveMembership
+                      ? "Gia Hạn Hội Viên Ngay"
+                      : "Đăng Ký Hội Viên Membership"}
+                  </Link>
+                ) : course.accessType === "commercial" ? (
                   <Link
                     href={`/checkout/${course.slug}`}
                     className="px-6 py-3 rounded-xl btn-gradient text-white text-sm font-bold inline-flex items-center gap-2"

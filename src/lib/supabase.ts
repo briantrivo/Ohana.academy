@@ -67,6 +67,9 @@ create table if not exists ohana_courses (
 
 create table if not exists ohana_orders (
   order_code text primary key,
+  order_type text not null default 'course',
+  plan_id text,
+  duration_days integer,
   course_id text not null,
   course_slug text not null,
   course_title text not null,
@@ -83,6 +86,34 @@ create table if not exists ohana_orders (
   transaction_ref text,
   created_at timestamptz not null default now(),
   paid_at timestamptz
+);
+
+alter table ohana_orders add column if not exists order_type text not null default 'course';
+alter table ohana_orders add column if not exists plan_id text;
+alter table ohana_orders add column if not exists duration_days integer;
+
+create table if not exists ohana_membership_plans (
+  id text primary key,
+  name text not null,
+  subtitle text default '',
+  duration_days integer not null default 30,
+  price bigint not null default 0,
+  original_price bigint,
+  badge text,
+  features jsonb not null default '[]'::jsonb,
+  active boolean not null default true,
+  sort_order integer not null default 1,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists ohana_subscriptions (
+  user_id text primary key,
+  plan_id text not null,
+  plan_name text not null,
+  started_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  last_order_code text,
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists ohana_activation_codes (
@@ -152,6 +183,8 @@ alter table ohana_certificates enable row level security;
 alter table ohana_enrollments enable row level security;
 alter table ohana_lesson_progress enable row level security;
 alter table ohana_quiz_scores enable row level security;
+alter table ohana_membership_plans enable row level security;
+alter table ohana_subscriptions enable row level security;
 `;
 
 let _initPromise: Promise<void> | null = null;

@@ -8,6 +8,7 @@ import {
   BookOpen,
   CheckCircle2,
   ChevronDown,
+  Crown,
   KeyRound,
   LayoutDashboard,
   LogIn,
@@ -22,7 +23,7 @@ import { UserRole } from "@/types/lms";
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, redeemActivationCode } = useLMS();
+  const { user, hasActiveMembership, membershipRemainingDays, logout, redeemActivationCode } = useLMS();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [codeInput, setCodeInput] = useState("");
@@ -96,6 +97,23 @@ export function Navbar() {
             >
               <BookOpen className="w-4 h-4" />
               Kho Khóa Học
+            </Link>
+
+            <Link
+              href="/membership"
+              className={`px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 ${
+                pathname.startsWith("/membership")
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-400/35 font-semibold"
+                  : "text-amber-300/90 hover:text-amber-200 hover:bg-amber-500/10"
+              }`}
+            >
+              <Crown className="w-4 h-4 text-amber-400" />
+              Hội Viên VIP
+              {hasActiveMembership && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
+                  {membershipRemainingDays}d
+                </span>
+              )}
             </Link>
 
             {user && (

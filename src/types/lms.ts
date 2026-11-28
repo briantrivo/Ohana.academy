@@ -1,4 +1,4 @@
-export type CourseAccessType = "commercial" | "internal" | "free";
+export type CourseAccessType = "commercial" | "internal" | "free" | "membership";
 
 export type VideoProvider = "youtube" | "vimeo" | "mp4";
 
@@ -16,6 +16,7 @@ export interface Lesson {
   duration: string;
   videoUrl: string;
   isFreePreview?: boolean;
+  publishedAt?: string;
   summary: string;
   resources?: {
     title: string;
@@ -65,6 +66,7 @@ export interface Course {
   certificateIssuer: string;
   certificateImage?: string;
   internalPasscode?: string;
+  includedInMembership?: boolean;
   chapters: Chapter[];
   createdAt: string;
 }
@@ -94,6 +96,9 @@ export type OrderStatus = "pending" | "paid" | "cancelled";
 
 export interface Order {
   orderCode: string;
+  orderType?: "course" | "membership";
+  planId?: string;
+  durationDays?: number;
   courseId: string;
   courseSlug: string;
   courseTitle: string;
@@ -149,6 +154,30 @@ export interface CertificateRecord {
   quizScore?: number;
 }
 
+export interface MembershipPlan {
+  id: string;
+  name: string;
+  subtitle: string;
+  durationDays: number;
+  price: number;
+  originalPrice?: number;
+  badge?: string;
+  features: string[];
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface UserSubscription {
+  userId: string;
+  planId: string;
+  planName: string;
+  startedAt: string;
+  expiresAt: string;
+  lastOrderCode?: string;
+  updatedAt: string;
+}
+
 export interface LMSDatabase {
   users: UserRecord[];
   courses: Course[];
@@ -156,6 +185,8 @@ export interface LMSDatabase {
   coupons: CouponRecord[];
   activationCodes: ActivationCode[];
   certificates: CertificateRecord[];
+  membershipPlans: MembershipPlan[];
+  subscriptions: Record<string, UserSubscription>;
   enrollments: Record<string, string[]>;
   progress: Record<string, Record<string, string[]>>;
   quizScores: Record<string, Record<string, number>>;

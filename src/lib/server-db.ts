@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { hashPasswordWithSalt } from "@/lib/auth-crypto";
 import { DEFAULT_INITIAL_COUPONS } from "@/lib/coupons";
+import { DEFAULT_MEMBERSHIP_PLANS } from "@/lib/membership";
 import { createInitialDatabase } from "@/lib/seed-data";
 import {
   ensureSupabaseReady,
@@ -15,9 +16,11 @@ import {
   Course,
   DiscountType,
   LMSDatabase,
+  MembershipPlan,
   Order,
   UserRecord,
   UserRole,
+  UserSubscription,
 } from "@/types/lms";
 
 export function createDefaultUsers(): UserRecord[] {
@@ -110,6 +113,14 @@ function readLocalJsonDb(): LMSDatabase {
       parsed.coupons = DEFAULT_INITIAL_COUPONS.map((c) => ({ ...c }));
       mutated = true;
     }
+    if (!Array.isArray(parsed.membershipPlans) || parsed.membershipPlans.length === 0) {
+      parsed.membershipPlans = DEFAULT_MEMBERSHIP_PLANS.map((p) => ({ ...p }));
+      mutated = true;
+    }
+    if (!parsed.subscriptions || typeof parsed.subscriptions !== "object") {
+      parsed.subscriptions = {};
+      mutated = true;
+    }
     if (mutated) {
       fs.writeFileSync(filePath, JSON.stringify(parsed, null, 2), "utf-8");
     }
@@ -146,6 +157,8 @@ export async function readServerDb(): Promise<LMSDatabase> {
       couponsRes,
       codesRes,
       certsRes,
+      plansRes,
+      subsRes,
       enrollRes,
       progRes,
       quizRes,
@@ -156,6 +169,8 @@ export async function readServerDb(): Promise<LMSDatabase> {
       sb.from("ohana_coupons").select("*").order("created_at", { ascending: false }),
       sb.from("ohana_activation_codes").select("*").order("created_at", { ascending: false }),
       sb.from("ohana_certificates").select("*").order("issued_at", { ascending: false }),
+      sb.from("ohana_membership_plans").select("*").order("sort_order", { ascending: true }),
+      sb.from("ohana_subscriptions").select("*").order("expires_at", { ascending: false }),
       sb.from("ohana_enrollments").select("*"),
       sb.from("ohana_lesson_progress").select("*"),
       sb.from("ohana_quiz_scores").select("*"),
@@ -195,6 +210,12 @@ export async function readServerDb(): Promise<LMSDatabase> {
 
     const orders: Order[] = (ordersRes.data || []).map((row) => ({
       orderCode: String(row.order_code),
+      orderType: row.order_type === "membership" ? "membership" : "course",
+      planId: row.plan_id ? String(row.plan_id) : undefined,
+      durationDays:
+        row.duration_days !== null && row.duration_days !== undefined
+          ? Number(row.duration_days)
+          : undefined,
       courseId: String(row.course_id),
       courseSlug: String(row.course_slug),
       courseTitle: String(row.course_title),
@@ -248,6 +269,44 @@ export async function readServerDb(): Promise<LMSDatabase> {
       quizScore: row.quiz_score !== null && row.quiz_score !== undefined ? Number(row.quiz_score) : undefined,
     }));
 
+    const membershipPlans: MembershipPlan[] =
+      !plansRes.error && plansRes.data
+        ? plansRes.data.map((row) => ({
+            id: String(row.id),
+            name: String(row.name),
+            subtitle: String(row.subtitle || ""),
+            durationDays: Number(row.duration_days || 30),
+            price: Number(row.price || 0),
+            originalPrice:
+              row.original_price !== null && row.original_price !== undefined
+                ? Number(row.original_price)
+                : undefined,
+            badge: row.badge ? String(row.badge) : undefined,
+            features: Array.isArray(row.features)
+              ? row.features.map((f: unknown) => String(f))
+              : [],
+            active: Boolean(row.active),
+            sortOrder: Number(row.sort_order ?? 1),
+            createdAt: String(row.created_at),
+          }))
+        : DEFAULT_MEMBERSHIP_PLANS.map((p) => ({ ...p }));
+
+    const subscriptions: Record<string, UserSubscription> = {};
+    if (!subsRes.error && subsRes.data) {
+      for (const row of subsRes.data) {
+        const uid = String(row.user_id);
+        subscriptions[uid] = {
+          userId: uid,
+          planId: String(row.plan_id),
+          planName: String(row.plan_name),
+          startedAt: String(row.started_at),
+          expiresAt: String(row.expires_at),
+          lastOrderCode: row.last_order_code ? String(row.last_order_code) : undefined,
+          updatedAt: String(row.updated_at),
+        };
+      }
+    }
+
     const enrollments: Record<string, string[]> = {};
     for (const row of enrollRes.data || []) {
       const uid = String(row.user_id);
@@ -281,6 +340,8 @@ export async function readServerDb(): Promise<LMSDatabase> {
       coupons,
       activationCodes,
       certificates,
+      membershipPlans,
+      subscriptions,
       enrollments,
       progress,
       quizScores,
@@ -348,6 +409,9 @@ export async function writeServerDb(db: LMSDatabase): Promise<LMSDatabase> {
       await sb.from("ohana_orders").upsert(
         db.orders.map((o) => ({
           order_code: o.orderCode,
+          order_type: o.orderType || "course",
+          plan_id: o.planId || null,
+          duration_days: o.durationDays ?? null,
           course_id: o.courseId,
           course_slug: o.courseSlug,
           course_title: o.courseTitle,
@@ -427,6 +491,49 @@ export async function writeServerDb(db: LMSDatabase): Promise<LMSDatabase> {
         })),
         { onConflict: "code" }
       );
+    }
+
+    const existingPlanIds =
+      (await sb.from("ohana_membership_plans").select("id")).data?.map((r) =>
+        String(r.id)
+      ) || [];
+    const currentPlanIds = new Set((db.membershipPlans || []).map((p) => p.id));
+    const deletedPlanIds = existingPlanIds.filter((id) => !currentPlanIds.has(id));
+    if (deletedPlanIds.length > 0) {
+      await sb.from("ohana_membership_plans").delete().in("id", deletedPlanIds);
+    }
+    if ((db.membershipPlans || []).length > 0) {
+      await sb.from("ohana_membership_plans").upsert(
+        (db.membershipPlans || []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          subtitle: p.subtitle || "",
+          duration_days: p.durationDays,
+          price: p.price,
+          original_price: p.originalPrice ?? null,
+          badge: p.badge || null,
+          features: p.features || [],
+          active: p.active,
+          sort_order: p.sortOrder ?? 1,
+          created_at: p.createdAt,
+        })),
+        { onConflict: "id" }
+      );
+    }
+
+    const subRows = Object.values(db.subscriptions || {}).map((s) => ({
+      user_id: s.userId,
+      plan_id: s.planId,
+      plan_name: s.planName,
+      started_at: s.startedAt,
+      expires_at: s.expiresAt,
+      last_order_code: s.lastOrderCode || null,
+      updated_at: s.updatedAt || new Date().toISOString(),
+    }));
+    if (subRows.length > 0) {
+      await sb
+        .from("ohana_subscriptions")
+        .upsert(subRows, { onConflict: "user_id" });
     }
 
     const enrollmentRows: { user_id: string; course_id: string }[] = [];

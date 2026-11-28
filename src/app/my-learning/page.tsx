@@ -5,8 +5,10 @@ import Link from "next/link";
 import {
   Award,
   BookOpen,
+  CalendarClock,
   CheckCircle2,
   Clock,
+  Crown,
   Edit3,
   ExternalLink,
   LogIn,
@@ -22,6 +24,9 @@ export default function MyLearningPage() {
   const {
     db,
     user,
+    mySubscription,
+    hasActiveMembership,
+    membershipRemainingDays,
     googleEnabled,
     isLoading,
     hasCourseAccess,
@@ -175,6 +180,75 @@ export default function MyLearningPage() {
             <div className="text-[11px] text-slate-400">Đơn đã duyệt</div>
           </div>
         </div>
+      </div>
+
+      {/* Membership Status Card */}
+      <div
+        className={`rounded-3xl p-5 sm:p-6 border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+          hasActiveMembership
+            ? "bg-emerald-500/10 border-emerald-400/40"
+            : mySubscription
+            ? "bg-amber-500/10 border-amber-400/40"
+            : "bg-slate-900/70 border-slate-800"
+        }`}
+      >
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-amber-300">
+            <Crown className="w-4 h-4" />
+            Ohana AI Membership
+          </div>
+          {hasActiveMembership && mySubscription ? (
+            <>
+              <div className="text-base sm:text-lg font-display font-bold text-white">
+                {mySubscription.planName} • Còn{" "}
+                <span className="text-emerald-300">
+                  {membershipRemainingDays} ngày
+                </span>
+              </div>
+              <div className="text-xs text-slate-300 flex items-center gap-1.5">
+                <CalendarClock className="w-3.5 h-3.5 text-emerald-400" />
+                Hiệu lực đến ngày{" "}
+                <strong>
+                  {new Date(mySubscription.expiresAt).toLocaleDateString("vi-VN")}
+                </strong>
+              </div>
+            </>
+          ) : mySubscription ? (
+            <>
+              <div className="text-base font-bold text-white">
+                Gói Hội viên đã hết hạn ngày{" "}
+                {new Date(mySubscription.expiresAt).toLocaleDateString("vi-VN")}
+              </div>
+              <div className="text-xs text-slate-300">
+                Toàn bộ lịch sử tiến độ học cũ vẫn được bảo toàn. Gia hạn để mở khóa tiếp các bài mới cập nhật.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-base font-bold text-white">
+                Học không giới hạn Kho Bài Học AI Cập Nhật Hàng Tháng
+              </div>
+              <div className="text-xs text-slate-400">
+                Chỉ từ 299.000đ/tháng — Thanh toán VietQR ACB tự động mở khóa sau 3 giây.
+              </div>
+            </>
+          )}
+        </div>
+        <Link
+          href="/membership"
+          className={`px-5 py-3 rounded-xl text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-1.5 shrink-0 ${
+            hasActiveMembership
+              ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
+              : "bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-lg"
+          }`}
+        >
+          <Crown className="w-4 h-4" />
+          {hasActiveMembership
+            ? "Xem Bài Mới / Gia Hạn Thêm"
+            : mySubscription
+            ? "Gia Hạn Hội Viên Ngay"
+            : "Đăng Ký Hội Viên VIP"}
+        </Link>
       </div>
 
       {/* Section 1: Khóa học của tôi */}
