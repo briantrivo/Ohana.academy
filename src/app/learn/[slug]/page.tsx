@@ -11,10 +11,12 @@ import {
   Circle,
   Crown,
   Download,
+  ExternalLink,
   FileText,
   HelpCircle,
   Link2,
   Lock,
+  MessageCircle,
   Paperclip,
   PlayCircle,
   QrCode,
@@ -42,6 +44,7 @@ export default function LearnCoursePage() {
     user,
     mySubscription,
     hasActiveMembership,
+    memberZaloGroupUrl,
     setDbState,
     hasCourseAccess,
     getCourseProgress,
@@ -843,6 +846,37 @@ export default function LearnCoursePage() {
               </div>
             ))}
           </div>
+
+          {isCourseInMembership(course) && memberZaloGroupUrl && (
+            <div className="p-4 border-t border-sky-500/30 bg-sky-950/35 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-sky-300">
+                <MessageCircle className="w-4 h-4 shrink-0" />
+                Group Hội Viên Học AI (Zalo)
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-white p-1.5 rounded-xl w-20 shrink-0 border border-sky-400/60">
+                  <img
+                    src="/api/membership/zalo-qr"
+                    alt="QR Group Hội Viên Học AI"
+                    className="w-full h-auto rounded-lg"
+                  />
+                </div>
+                <div className="space-y-2 min-w-0">
+                  <p className="text-[11px] text-slate-300 leading-snug">
+                    Quét QR hoặc bấm nút để tham gia nhóm Zalo nhận thông báo bài mới &amp; hỏi đáp.
+                  </p>
+                  <a
+                    href={memberZaloGroupUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-[11px] font-extrabold"
+                  >
+                    Vào Nhóm Zalo <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
       </div>
     </div>

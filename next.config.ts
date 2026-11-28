@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ytimg.com" },
     ],
   },
+  outputFileTracingIncludes: {
+    "/api/membership/zalo-qr": ["./private/zalo_group_hoivien_qr.jpg"],
+  },
 };
 
 export default nextConfig;

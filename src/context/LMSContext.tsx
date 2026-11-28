@@ -29,6 +29,7 @@ interface LMSContextValue {
   mySubscription: UserSubscription | null;
   hasActiveMembership: boolean;
   membershipRemainingDays: number;
+  memberZaloGroupUrl: string | null;
   googleEnabled: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
@@ -70,6 +71,7 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
   const [db, setDb] = useState<LMSDatabase>(() => createInitialDatabase());
   const [user, setUser] = useState<UserProfile | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState<boolean>(false);
+  const [memberZaloGroupUrl, setMemberZaloGroupUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const refreshState = useCallback(async () => {
@@ -77,9 +79,15 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/state", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        const { currentUser, googleEnabled: ggOn, ...restDb } = data;
+        const {
+          currentUser,
+          googleEnabled: ggOn,
+          memberZaloGroupUrl: zaloUrl,
+          ...restDb
+        } = data;
         setUser(currentUser || null);
         setGoogleEnabled(Boolean(ggOn));
+        setMemberZaloGroupUrl(typeof zaloUrl === "string" ? zaloUrl : null);
         setDb(restDb as LMSDatabase);
       }
     } catch (err) {
@@ -109,6 +117,7 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
       }
       if (data.user) setUser(data.user);
       if (data.db) setDb(data.db);
+      void refreshState();
       return { ok: true };
     } catch (err) {
       return { ok: false, error: String(err) };
@@ -130,6 +139,7 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
       }
       if (data.user) setUser(data.user);
       if (data.db) setDb(data.db);
+      void refreshState();
       return { ok: true };
     } catch (err) {
       return { ok: false, error: String(err) };
@@ -305,6 +315,7 @@ export function LMSProvider({ children }: { children: React.ReactNode }) {
         mySubscription,
         hasActiveMembership,
         membershipRemainingDays,
+        memberZaloGroupUrl,
         googleEnabled,
         isLoading,
         login,

@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { CourseCard } from "@/components/CourseCard";
+import { MemberZaloCard } from "@/components/MemberZaloCard";
 import { useLMS } from "@/context/LMSContext";
 import {
   collectRecentMembershipLessons,
@@ -277,6 +278,9 @@ export default function MembershipPage() {
               </div>
             </div>
           )}
+
+          {/* Member Zalo Group QR & Join Card */}
+          <MemberZaloCard />
         </div>
       </section>
 
@@ -529,8 +533,11 @@ export default function MembershipPage() {
                 <p className="text-sm text-slate-300">
                   Hệ thống đã cộng <strong>+{selectedPlan.durationDays} ngày</strong> quyền lợi Hội
                   viên vào tài khoản <strong className="text-cyan-300">{user.email}</strong>. Bạn có
-                  thể vào học toàn bộ bài giảng cập nhật ngay bây giờ!
+                  thể vào học toàn bộ bài giảng cập nhật và tham gia Group Zalo Hội Viên ngay bây giờ!
                 </p>
+                <div className="text-left">
+                  <MemberZaloCard compact />
+                </div>
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                   {flagshipMembershipCourse && (
                     <Link

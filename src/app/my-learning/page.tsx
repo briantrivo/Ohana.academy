@@ -17,6 +17,7 @@ import {
   Receipt,
   Save,
 } from "lucide-react";
+import { MemberZaloCard } from "@/components/MemberZaloCard";
 import { useLMS } from "@/context/LMSContext";
 import { formatVND } from "@/lib/video";
 
@@ -250,6 +251,10 @@ export default function MyLearningPage() {
             : "Đăng Ký Hội Viên VIP"}
         </Link>
       </div>
+
+      {(hasActiveMembership || user.role === "admin") && (
+        <MemberZaloCard compact />
+      )}
 
       {/* Section 1: Khóa học của tôi */}
       <section className="space-y-4">
